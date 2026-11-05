@@ -10,32 +10,23 @@ Un único archivo `index.html` (sin carpetas `css/` ni `js/`) para analizar `Tie
 
 ## Qué incluye
 
-- **Resumen**: viajes, % llegada puntual, SSCC zonados, SSCC/hora por operador, mediana recepción→zonaje y plantilla real vs necesaria. Alertas automáticas ordenadas por gravedad.
-- **Plantilla**: carga media por hora del día (FR / SU / otras) con operadores presentes vs necesarios; dimensionamiento por turno (Noche 00–08, Mañana 08–16, Tarde 16–24); mapa de calor operador × hora.
-- **Recepción → Zonaje**: distribución de tiempos, mediana / P90 / % en objetivo por temperatura, pendientes de zonaje y mediana por hora.
-- **Viajes**: puntualidad diaria de salida y llegada, retraso medio por agencia y ranking de agencias.
-- **Operadores**: SSCC por hora activa, comparación con el objetivo, mediana de zonaje y estado.
-- **Filtros**: rango de fechas, turno, operador, temperatura, estado de etiqueta y agencia.
-- **Parámetros**: objetivo de zonaje (min), tolerancia de puntualidad (min), objetivo SSCC/h (60 por defecto, el de la delegación; vacío = mediana del equipo), inicio del primer turno (00 h por defecto; los tres turnos son de 8 h) y horas efectivas por turno. Se guardan en el navegador.
-- **Exportar**: informe Excel con hojas Operadores, Turnos, Carga por hora, Agencias y Alertas; botón *Copiar tabla* para pegar en Excel.
-- Tema claro / oscuro y vista móvil.
+- **Resumen**: viajes, % llegada puntual, SSCC movidos, SSCC/hora por operario (objetivo 60), tiempo en muelle y plantilla real vs necesaria. Alertas automáticas.
+- **Plantilla**: carga media por hora (FR / SU / otras) con operarios presentes vs necesarios; dimensionamiento por turno (Noche 00–08, Mañana 08–16, Tarde 16–24); mapa de calor operario × hora.
+- **Tiempo en muelle**: recepción → carga, por temperatura y por tipo de bordereau (descripciones de BD_VIAJES), SSCC sin cargar y sin cargar > 24 h, mediana según hora de recepción. También la mediana recepción → zonaje.
+- **Viajes**: puntualidad diaria de salida y llegada, retraso medio por agencia y ranking.
+- **Operarios**: recepciones, zonajes y cargas por persona, horas activas, SSCC/h y comparación con el objetivo.
+- **Filtros**: fechas, actividad (carga + zonaje por defecto, carga, zonaje, recepción o todas), turno, operario, temperatura, estado y agencia.
+- **Parámetros**: objetivo SSCC/h (60), inicio del primer turno (00 h), horas efectivas por turno (7), objetivo de tiempo en muelle (12 h) y tolerancia de puntualidad (15 min).
+- **Exportar**: informe Excel (Operarios, Turnos, Carga por hora, Tiempo en muelle, Agencias, Alertas) y *Copiar tabla*.
 
 ## Cómo se calcula
 
-- **Hora de actividad**: la de *Fecha Zonaje* (o la de recepción si aún no está zonado).
-- **Horas activas** de un operador: horas de reloj distintas en las que hizo al menos un zonaje.
-- **Operadores necesarios por hora** = SSCC medios de esa hora ÷ objetivo SSCC/h.
-- **Plantilla necesaria por turno** = SSCC/día del turno ÷ (objetivo SSCC/h × horas efectivas).
-- **Retraso de llegada** = HR_LLE_REAL − HR_LLE_NEGOCIADA (o HR_LLE_PLAN si no hay negociada). Si solo hay hora, se corrige el cruce de medianoche.
-- **Puntual** = retraso ≤ tolerancia.
-
-## Columnas esperadas
-
-**BD_LLE_NAC**: F.VIAJE, NOM_VIAJE, COD_VIAJE, HR_SAL_PLAN, HR_SAL_REAL, AGENCIA EXPEDIDORA, HR_LLE_NEGOCIADA, HR_LLE_PLAN, HR_LLE_REAL
-
-**BD_MOV_IQ**: Etiqueta SSCC, Cat Temp, Fecha de recepción, Fecha Zonaje, Estado Etiqueta, Operador, Num Paquete Pos., Num Tot Pal Pos, Tipo Bord, Descr. Bord., Agencia expedidiora, Agencia proprietaria
-
-Se toleran acentos, mayúsculas, puntos y guiones bajos en los nombres de columna. Las fechas pueden venir como fecha de Excel, `dd/mm/aaaa hh:mm`, `aaaa-mm-dd hh:mm` o solo `hh:mm`.
+- **Actividades de BD_MOV_IQ**: recepción (`Fecha de recepción` + `Num. Recep.`), zonaje (`Fecha Zonaje` + `El que reparte en zonas`) y carga (`Fecha Carga Etiq` + `Operador`). Cada línea cuenta como un SSCC.
+- **Horas activas** de un operario: horas de reloj distintas con al menos un movimiento de la actividad elegida.
+- **Operarios necesarios por hora** = SSCC medios de esa hora ÷ objetivo SSCC/h.
+- **Plantilla necesaria por turno** = SSCC/día del turno ÷ (objetivo × horas efectivas).
+- **Tiempo en muelle** = Fecha Carga Etiq − Fecha de recepción.
+- **Retraso de llegada** = HR_LLE_REAL − HR_LLE_NEGOCIADA (o HR_LLE_PLAN). Las fechas sin año (`31/03 21:00`) toman el año de BD_MOV_IQ.
 
 ## Corrección respecto a la versión anterior
 
