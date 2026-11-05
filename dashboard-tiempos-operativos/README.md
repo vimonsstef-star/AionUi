@@ -11,12 +11,12 @@ Un único archivo `index.html` (sin carpetas `css/` ni `js/`) para analizar `Tie
 ## Qué incluye
 
 - **Resumen**: viajes, % llegada puntual, SSCC zonados, SSCC/hora por operador, mediana recepción→zonaje y plantilla real vs necesaria. Alertas automáticas ordenadas por gravedad.
-- **Plantilla**: carga media por hora del día (FR / SU / otras) con operadores presentes vs necesarios; dimensionamiento por turno (Mañana 06–14, Tarde 14–22, Noche 22–06); mapa de calor operador × hora.
+- **Plantilla**: carga media por hora del día (FR / SU / otras) con operadores presentes vs necesarios; dimensionamiento por turno (Noche 00–08, Mañana 08–16, Tarde 16–24); mapa de calor operador × hora.
 - **Recepción → Zonaje**: distribución de tiempos, mediana / P90 / % en objetivo por temperatura, pendientes de zonaje y mediana por hora.
 - **Viajes**: puntualidad diaria de salida y llegada, retraso medio por agencia y ranking de agencias.
 - **Operadores**: SSCC por hora activa, comparación con el objetivo, mediana de zonaje y estado.
 - **Filtros**: rango de fechas, turno, operador, temperatura, estado de etiqueta y agencia.
-- **Parámetros**: objetivo de zonaje (min), tolerancia de puntualidad (min), objetivo SSCC/h (auto = mediana) y horas efectivas por turno. Se guardan en el navegador.
+- **Parámetros**: objetivo de zonaje (min), tolerancia de puntualidad (min), objetivo SSCC/h (60 por defecto, el de la delegación; vacío = mediana del equipo), inicio del primer turno (00 h por defecto; los tres turnos son de 8 h) y horas efectivas por turno. Se guardan en el navegador.
 - **Exportar**: informe Excel con hojas Operadores, Turnos, Carga por hora, Agencias y Alertas; botón *Copiar tabla* para pegar en Excel.
 - Tema claro / oscuro y vista móvil.
 

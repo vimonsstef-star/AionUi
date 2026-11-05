@@ -160,7 +160,7 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
   <div class="frow">
     <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
     <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
-    <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+    <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option></select></div>
     <div class="field"><label for="fOp">Operador</label><select id="fOp"><option value="">Todos</option></select></div>
     <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
     <div class="field"><label for="fEstado">Estado etiqueta</label><select id="fEstado"><option value="">Todos</option></select></div>
@@ -172,10 +172,11 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
     <div class="frow">
       <div class="field"><label for="pSla">Objetivo recepción→zonaje (min)</label><input type="number" id="pSla" min="1" value="30"></div>
       <div class="field"><label for="pTol">Tolerancia puntualidad (min)</label><input type="number" id="pTol" min="0" value="15"></div>
-      <div class="field"><label for="pTarget">Objetivo SSCC/hora por operador</label><input type="number" id="pTarget" min="1" step="0.5" placeholder="Auto"></div>
+      <div class="field"><label for="pTarget">Objetivo SSCC/hora por operador</label><input type="number" id="pTarget" min="1" step="1" value="60" placeholder="Auto"></div>
+      <div class="field"><label for="pShift">Inicio del primer turno (hora)</label><input type="number" id="pShift" min="0" max="23" step="1" value="0"></div>
       <div class="field"><label for="pHours">Horas efectivas por turno</label><input type="number" id="pHours" min="1" max="12" step="0.5" value="7"></div>
     </div>
-    <p class="hint">Sin objetivo SSCC/hora, se usa la mediana de los operadores con al menos 4 horas activas. Turnos: Mañana 06–14, Tarde 14–22, Noche 22–06. La hora de actividad es la de zonaje (o la de recepción si no hay zonaje).</p>
+    <p class="hint">Objetivo de la delegación: 60 SSCC/hora por operario. Si dejas el campo vacío, se usa la mediana de los operadores con al menos 4 horas activas. Se trabaja en tres turnos de 8 horas a partir de la hora de inicio (por defecto 00–08, 08–16 y 16–24). La hora de actividad es la de zonaje (o la de recepción si no hay zonaje).</p>
   </details>
 </div>
 
@@ -334,8 +335,13 @@ function parseDT(v, baseMs){
   return null;
 }
 function delayMin(real, plan){ if (real==null || plan==null) return null; let d = (real - plan)/60000; while (d > 720) d -= 1440; while (d < -720) d += 1440; return d; }
-const turnoOf = h => h >= 6 && h < 14 ? 'Mañana' : (h >= 14 && h < 22 ? 'Tarde' : 'Noche');
-const TURNOS = [['Mañana',[6,7,8,9,10,11,12,13]],['Tarde',[14,15,16,17,18,19,20,21]],['Noche',[22,23,0,1,2,3,4,5]]];
+/* Tres turnos de 8 h desde la hora de inicio configurable (por defecto 00–08, 08–16, 16–24) */
+let SHIFT_START = 0, TURNOS = [];
+function shiftName(st){ const n = (st >= 20 || st < 4) ? 'Noche' : st < 12 ? 'Mañana' : 'Tarde'; return `${n} ${pad(st)}–${pad((st+8)%24 || 24)}`; }
+function setShiftStart(st){ SHIFT_START = ((st|0)%24+24)%24; TURNOS = [0,1,2].map(k => { const a = (SHIFT_START + 8*k)%24; return [shiftName(a), Array.from({length:8}, (_,i) => (a+i)%24)]; }); }
+setShiftStart(0);
+const shiftIdx = h => Math.floor(((h - SHIFT_START + 24)%24)/8);
+const turnoOf = h => TURNOS[shiftIdx(h)][0];
 function normTemp(v){ const s = clean(v).toUpperCase(); if (!s) return 'Sin categoría'; if (s.startsWith('FR')) return 'FR'; if (s.startsWith('SU')) return 'SU'; return s; }
 const tempKey = t => t==='FR' ? 'FR' : t==='SU' ? 'SU' : 'Otras';
 
@@ -391,12 +397,12 @@ function loadWorkbook(buf, fileName){
 /* ---------- Datos de ejemplo (inventados) ---------- */
 function sample(){
   let seed = 20261104; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  const ops = [['García M.',0],['López A.',0],['Martínez J.',0],['Sánchez R.',0],['Pérez L.',0],['Gómez D.',1],['Ruiz F.',1],['Navarro C.',1],['Torres I.',1],['Romero P.',2],['Ortega S.',2],['Castillo E.',2],['Molina V.',2],['Herrera N.',2],['Vidal B.',2],['Serrano T.',2]];
+  const ops = [['García M.',0],['Martínez J.',0],['Sánchez R.',0],['Gómez D.',1],['Ruiz F.',1],['Navarro C.',1],['Torres I.',1],['Romero P.',2],['Ortega S.',2],['Castillo E.',2],['Molina V.',2],['Herrera N.',2],['Vidal B.',2],['Serrano T.',2]];
   const speed = ops.map(() => 0.7 + rnd()*0.7);
   const ags = ['Madrid','Barcelona','Sevilla','Zaragoza','Murcia','Bilbao','Alicante','Castellón','Málaga'];
   const bias = {Sevilla:28, Bilbao:19, 'Málaga':12};
   const prof = [70,80,92,98,94,86,64,52,40,32,28,24,22,26,36,46,50,46,42,36,38,46,56,64];
-  const shiftOf = h => h>=6&&h<14 ? 0 : h>=14&&h<22 ? 1 : 2;
+  const shiftOf = h => [2,0,1][shiftIdx(h)]; // grupo 2 = turno 1 (noche, más carga), 0 = turno 2, 1 = turno 3
   const end = Math.floor(Date.UTC(2026,10,4)/DAY), toSerial = ms => ms/DAY + 25569;
   const T = [], M = [];
   for (let d = end-13; d <= end; d++){
@@ -410,7 +416,7 @@ function sample(){
         'AGENCIA EXPEDIDORA': ag, 'HR_LLE_NEGOCIADA': lp, 'HR_LLE_PLAN': lp, 'HR_LLE_REAL': rnd()<0.03?null:((lp + delay/1440) % 1 + 1) % 1});
     }
     for (let h = 0; h < 24; h++){
-      const n = Math.round(prof[h]*(0.8+rnd()*0.4)*df);
+      const n = Math.round(prof[h]*6.5*(0.8+rnd()*0.4)*df);
       const pool = ops.map((o,i) => i).filter(i => ops[i][1] === shiftOf(h));
       const wsum = pool.reduce((s,i) => s + speed[i], 0);
       for (let k = 0; k < n; k++){
@@ -450,10 +456,17 @@ function readFilters(){
 }
 function readParams(){
   const v = id => { const n = parseFloat($(id).value); return isFinite(n) && n > 0 ? n : null; };
-  return { sla: v('pSla') || 30, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7 };
+  return { sla: v('pSla') || 30, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7, shift: parseInt($('pShift').value, 10) >= 0 ? parseInt($('pShift').value, 10) % 24 : 0 };
 }
 
 /* ---------- Cálculo ---------- */
+function applyShifts(){
+  const st = readParams().shift;
+  if (st !== state.shiftApplied){ setShiftStart(st); for (const m of state.moves) m.turno = turnoOf(m.hour); state.shiftApplied = st; }
+  const sel = $('fTurno'), cur = sel.value, names = TURNOS.map(t => t[0]);
+  sel.innerHTML = '<option value="">Todos</option>' + names.map(n => `<option>${n}</option>`).join('');
+  sel.value = names.includes(cur) ? cur : '';
+}
 function compute(){
   const f = readFilters(), p = readParams();
   const moves = state.moves.filter(m => m.day >= f.from && m.day <= f.to && (!f.turno || m.turno===f.turno) && (!f.op || m.op===f.op) && (!f.temp || m.temp===f.temp) && (!f.estado || m.estado===f.estado) && (!f.ag || m.ag===f.ag));
@@ -554,6 +567,7 @@ const sLevel = (v, good, warn) => v==null ? null : v >= good ? 'good' : v >= war
 const LABEL = {good:'Bien', warn:'Vigilar', bad:'Mejorar', mute:'Poca actividad', info:'Info'};
 
 function render(){
+  applyShifts();
   const r = compute(); state.last = r; const p = r.p;
   $('rangeLabel').textContent = isFinite(r.f.from) ? `Del ${dayLabel(r.f.from)} al ${dayLabel(r.f.to)} · ${r.nDays} días con movimientos` : '';
   setKpi('kViajes', fmt(r.trips.length), r.trips.length ? `Salida puntual ${pct(r.puntSal)}` : 'Sin viajes en el rango');
@@ -687,8 +701,8 @@ $('themeBtn').addEventListener('click', () => {
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state.last && renderCharts(state.last));
 
 // Parámetros guardados en este navegador
-try { const saved = JSON.parse(store.get('to-params') || 'null'); if (saved) ['pSla','pTol','pTarget','pHours'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
-['pSla','pTol','pTarget','pHours'].forEach(id => $(id).addEventListener('change', () => { store.set('to-params', JSON.stringify(Object.fromEntries(['pSla','pTol','pTarget','pHours'].map(k => [k, $(k).value])))); render(); }));
+try { const saved = JSON.parse(store.get('to-params-v2') || 'null'); if (saved) ['pSla','pTol','pTarget','pShift','pHours'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
+['pSla','pTol','pTarget','pShift','pHours'].forEach(id => $(id).addEventListener('change', () => { store.set('to-params-v2', JSON.stringify(Object.fromEntries(['pSla','pTol','pTarget','pShift','pHours'].map(k => [k, $(k).value])))); render(); }));
 ['fFrom','fTo','fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).addEventListener('change', render));
 $('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
 
