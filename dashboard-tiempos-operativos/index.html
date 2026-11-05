@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tiempos Operativos Valencia</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<style>
+/* Layout: cabecera de muelle + barra de filtros + bloques apilados (resumen → plantilla → zonaje → viajes → operadores) */
+:root{
+  --bg:#eef2f4; --surface:#ffffff; --sunk:#f5f8f9; --ink:#14212b; --muted:#566874; --line:#d6dee3;
+  --accent:#0a6a85; --accent-ink:#ffffff;
+  --fr:#16907d; --su:#2f53a8; --other:#8d9aa4;
+  --good:#2a7f3e; --warn:#b86e00; --bad:#bf3a30;
+  --good-bg:#e3f2e7; --warn-bg:#fbefd9; --bad-bg:#f9e2df; --info-bg:#e1eff4;
+  --font-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-data:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1360px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:.01em}
+.num,td.n,th.n{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+button,.btn,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;padding-block:20px 16px}
+.eyebrow{font-family:var(--font-data);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top h1{font-size:clamp(30px,5vw,42px);font-weight:700;line-height:1}
+.dock-strip{display:inline-flex;gap:3px;margin-left:10px;vertical-align:middle}
+.dock-strip i{width:7px;height:22px;background:var(--accent);opacity:.25;display:block}
+.dock-strip i:nth-child(2){opacity:.45}.dock-strip i:nth-child(3){opacity:.7}.dock-strip i:nth-child(4){opacity:1}
+.source{color:var(--muted);font-size:13px;margin-top:6px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:5px 10px;font-size:13px}
+#excelFile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.banner{background:var(--info-bg);border-bottom:1px solid var(--line);font-size:14px}
+.banner .wrap{padding-block:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banner b{font-family:var(--font-data);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink);padding:2px 7px;border-radius:3px}
+.banner.error{background:var(--bad-bg)}
+
+/* Filtros */
+.filters{padding-block:16px 4px;display:grid;gap:10px}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field input,.field select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+details.params{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+details.params summary{cursor:pointer;font-weight:600;font-size:14px}
+details.params .frow{margin-top:10px}
+.hint{font-size:12px;color:var(--muted)}
+
+/* Navegación de secciones */
+.secnav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.secnav .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+.secnav a{white-space:nowrap;text-decoration:none;color:var(--ink);font-size:14px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:var(--surface)}
+.secnav a:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Secciones */
+main{display:grid;gap:28px;padding-block:20px 48px}
+section{display:grid;gap:14px;scroll-margin-top:60px}
+.sechead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.sechead h2{font-size:26px;font-weight:700;text-transform:uppercase}
+.sechead p{margin:0;color:var(--muted);font-size:14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
+.g32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+@media (max-width:900px){.g32{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ptitle{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;align-items:baseline}
+.ptitle h3{font-size:19px;font-weight:600}
+.ptitle span{font-size:12px;color:var(--muted)}
+.chart-box{position:relative;height:290px;width:100%}
+.chart-box.tall{height:360px}
+.nochart{display:grid;place-items:center;height:100%;color:var(--muted);font-size:14px;text-align:center}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.kpi[data-s="good"]::after{background:var(--good)}.kpi[data-s="warn"]::after{background:var(--warn)}.kpi[data-s="bad"]::after{background:var(--bad)}
+.kpi span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi strong{font-family:var(--font-display);font-size:34px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+
+/* Alertas */
+.alerts{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:330px;overflow-y:auto}
+.alerts li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:6px;background:var(--sunk);font-size:14px}
+.chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:12px;white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good)}.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.info{background:var(--info-bg);color:var(--accent)}
+.chip.mute{background:var(--sunk);color:var(--muted)}
+
+/* Tablas */
+.table-wrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.n,td.n{text-align:right}
+tbody tr:hover td{background:var(--sunk)}
+.scroll-y{max-height:420px;overflow:auto}
+.tempdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Mapa de calor */
+.heat td{padding:0;border:1px solid var(--surface);text-align:center;font-family:var(--font-data);font-size:11px;min-width:30px;height:26px}
+.heat td.lbl{padding:0 8px;text-align:left;font-family:var(--font-body);font-size:13px;background:var(--surface);position:sticky;left:0;z-index:1}
+.heat th{text-align:center;padding:4px 2px;font-family:var(--font-data)}
+.heat th:first-child{position:sticky;left:0;z-index:2}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px);z-index:20}
+footer{color:var(--muted);font-size:12px;padding-block:0 32px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:560px){.kpi strong{font-size:28px}.chart-box{height:250px}.sechead h2{font-size:22px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Muelle · Delegación Valencia · Temperatura controlada</div>
+      <h1>Tiempos Operativos<span class="dock-strip" aria-hidden="true"><i></i><i></i><i></i><i></i></span></h1>
+      <div class="source" id="sourceLabel">Datos de ejemplo</div>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="excelFile">Cargar Excel</label>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,.xlsm">
+      <button class="btn" id="exportXlsx" type="button">Exportar informe Excel</button>
+      <button class="btn" id="themeBtn" type="button" aria-label="Cambiar tema claro u oscuro">Tema</button>
+    </div>
+  </div>
+</header>
+<div class="banner" id="banner"><div class="wrap"><b>Ejemplo</b><span id="bannerText">Estás viendo datos inventados. Pulsa <strong>Cargar Excel</strong> y elige <em>Tiempos Operativos.xlsx</em> (hojas BD_LLE_NAC y BD_MOV_IQ). El archivo se procesa en tu navegador, no se sube a ningún sitio.</span></div></div>
+
+<div class="wrap filters">
+  <div class="frow">
+    <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
+    <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
+    <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+    <div class="field"><label for="fOp">Operador</label><select id="fOp"><option value="">Todos</option></select></div>
+    <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
+    <div class="field"><label for="fEstado">Estado etiqueta</label><select id="fEstado"><option value="">Todos</option></select></div>
+    <div class="field"><label for="fAg">Agencia</label><select id="fAg"><option value="">Todas</option></select></div>
+    <div class="field"><button class="btn" id="resetFilters" type="button">Limpiar filtros</button></div>
+  </div>
+  <details class="params" id="paramsBox">
+    <summary>Parámetros de cálculo</summary>
+    <div class="frow">
+      <div class="field"><label for="pSla">Objetivo recepción→zonaje (min)</label><input type="number" id="pSla" min="1" value="30"></div>
+      <div class="field"><label for="pTol">Tolerancia puntualidad (min)</label><input type="number" id="pTol" min="0" value="15"></div>
+      <div class="field"><label for="pTarget">Objetivo SSCC/hora por operador</label><input type="number" id="pTarget" min="1" step="0.5" placeholder="Auto"></div>
+      <div class="field"><label for="pHours">Horas efectivas por turno</label><input type="number" id="pHours" min="1" max="12" step="0.5" value="7"></div>
+    </div>
+    <p class="hint">Sin objetivo SSCC/hora, se usa la mediana de los operadores con al menos 4 horas activas. Turnos: Mañana 06–14, Tarde 14–22, Noche 22–06. La hora de actividad es la de zonaje (o la de recepción si no hay zonaje).</p>
+  </details>
+</div>
+
+<nav class="secnav" aria-label="Secciones"><div class="wrap">
+  <a href="#resumen">Resumen</a><a href="#plantilla">Plantilla</a><a href="#zonaje">Recepción→Zonaje</a><a href="#viajes">Viajes</a><a href="#operadores">Operadores</a>
+</div></nav>
+
+<main class="wrap">
+  <section id="resumen">
+    <div class="sechead"><h2>Resumen</h2><p id="rangeLabel"></p></div>
+    <div class="kpis">
+      <article class="kpi" id="kViajes"><span>Viajes</span><strong>0</strong><em></em></article>
+      <article class="kpi" id="kPuntLle"><span>Llegada puntual</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kSSCC"><span>SSCC zonados</span><strong>0</strong><em></em></article>
+      <article class="kpi" id="kRate"><span>SSCC / hora operador</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kDwell"><span>Recepción→zonaje</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kStaff"><span>Plantilla vs necesidad</span><strong>—</strong><em></em></article>
+    </div>
+    <div class="grid g32">
+      <article class="panel">
+        <div class="ptitle"><h3>Actividad diaria</h3><span>SSCC zonados por día · viajes</span></div>
+        <div class="chart-box"><canvas id="cTrend"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Alertas</h3><span id="alertCount"></span></div>
+        <ul class="alerts" id="alerts"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="plantilla">
+    <div class="sechead"><h2>Plantilla</h2><p>Carga media por hora y operadores necesarios para absorberla</p></div>
+    <article class="panel">
+      <div class="ptitle"><h3>Carga por hora del día</h3><span id="hourSub"></span></div>
+      <div class="chart-box tall"><canvas id="cHour"></canvas></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Dimensionamiento por turno</h3><span>Medias por día con actividad</span></div>
+      <div class="table-wrap"><table id="tTurnos"><thead><tr><th>Turno</th><th class="n">SSCC/día</th><th class="n">Operadores/día</th><th class="n">Horas-operador/día</th><th class="n">SSCC/h real</th><th class="n">Plantilla necesaria</th><th>Ajuste</th></tr></thead><tbody></tbody></table></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Operador × hora del día</h3><span>SSCC medios por día · los 15 operadores con más volumen</span></div>
+      <div class="table-wrap"><table class="heat" id="tHeat"></table></div>
+    </article>
+  </section>
+
+  <section id="zonaje">
+    <div class="sechead"><h2>Recepción → Zonaje</h2><p>Tiempo que pasa cada palet en muelle hasta quedar ubicado</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Distribución de tiempos</h3><span id="dwellSub"></span></div>
+        <div class="chart-box"><canvas id="cDwell"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Por categoría de temperatura</h3><span>FR refrigerado · SU congelado</span></div>
+        <div class="table-wrap"><table id="tTemp"><thead><tr><th>Categoría</th><th class="n">SSCC</th><th class="n">Mediana</th><th class="n">P90</th><th class="n">En objetivo</th><th class="n">Pendientes</th></tr></thead><tbody></tbody></table></div>
+        <div class="chart-box" style="height:200px"><canvas id="cDwellHour"></canvas></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="viajes">
+    <div class="sechead"><h2>Viajes</h2><p>Salida real vs plan · llegada real vs negociada (o plan si no hay negociada)</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Puntualidad diaria</h3><span id="tolSub"></span></div>
+        <div class="chart-box"><canvas id="cPunct"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Retraso medio de llegada por agencia</h3><span>Minutos · negativo = adelantado</span></div>
+        <div class="chart-box"><canvas id="cAgency"></canvas></div>
+      </article>
+    </div>
+    <article class="panel">
+      <div class="ptitle"><h3>Ranking de agencias expedidoras</h3><button class="btn small" type="button" data-copy="tAg">Copiar tabla</button></div>
+      <div class="table-wrap scroll-y"><table id="tAg"><thead><tr><th>Agencia</th><th class="n">Viajes</th><th class="n">Salida puntual</th><th class="n">Llegada puntual</th><th class="n">Retraso medio</th><th class="n">Peor retraso</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+    </article>
+  </section>
+
+  <section id="operadores">
+    <div class="sechead"><h2>Operadores</h2><p>Productividad por hora activa (horas con al menos un zonaje)</p></div>
+    <article class="panel">
+      <div class="ptitle"><h3>SSCC por hora activa</h3><span id="opSub"></span></div>
+      <div class="chart-box tall"><canvas id="cOps"></canvas></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Eficiencia por operador</h3><button class="btn small" type="button" data-copy="tOps">Copiar tabla</button></div>
+      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operador</th><th>Turno habitual</th><th class="n">SSCC</th><th class="n">Paquetes</th><th class="n">Horas activas</th><th class="n">SSCC/h</th><th class="n">vs objetivo</th><th class="n">Mediana zonaje</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+    </article>
+  </section>
+</main>
+<footer class="wrap">Columnas esperadas en BD_LLE_NAC: F.VIAJE, NOM_VIAJE, COD_VIAJE, HR_SAL_PLAN, HR_SAL_REAL, AGENCIA EXPEDIDORA, HR_LLE_NEGOCIADA, HR_LLE_PLAN, HR_LLE_REAL. En BD_MOV_IQ: Etiqueta SSCC, Cat Temp, Fecha de recepción, Fecha Zonaje, Estado Etiqueta, Operador, Num Paquete Pos., Num Tot Pal Pos, Agencia expedidora. Se toleran acentos, mayúsculas, puntos y guiones bajos.</footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const DAY = 864e5;
+const $ = id => document.getElementById(id);
+const NF = new Intl.NumberFormat('es-ES');
+const NF1 = new Intl.NumberFormat('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmt = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n));
+const fmt1 = n => (n==null||!isFinite(n)) ? '—' : NF1.format(n);
+const pct = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n*100)) + '%';
+const pad = n => String(n).padStart(2,'0');
+const dayLabel = d => { const t = new Date(d*DAY); return pad(t.getUTCDate()) + '/' + pad(t.getUTCMonth()+1); };
+const isoDay = d => new Date(d*DAY).toISOString().slice(0,10);
+const minLabel = m => { if (m==null||!isFinite(m)) return '—'; const r = Math.round(m); return Math.abs(r) < 60 ? r + ' min' : (r<0?'-':'') + Math.floor(Math.abs(r)/60) + ' h ' + pad(Math.abs(r)%60); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const median = a => quantile(a, .5);
+function quantile(arr, q){ if (!arr.length) return null; const a = arr.slice().sort((x,y)=>x-y); const p = (a.length-1)*q, lo = Math.floor(p), hi = Math.ceil(p); return a[lo] + (a[hi]-a[lo])*(p-lo); }
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+
+const state = { trips: [], moves: [], source: 'sample', fileName: '', charts: {}, last: null };
+
+/* ---------- Normalización de columnas ---------- */
+const norm = s => String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const TRIP_COLS = {
+  fecha:['fviaje','fechaviaje'], nom:['nomviaje','nombreviaje'], cod:['codviaje','codigoviaje'],
+  salPlan:['hrsalplan','horasalidaplan'], salReal:['hrsalreal','horasalidareal'],
+  agencia:['agenciaexpedidora','agenciaexpediora','agencia'],
+  lleNeg:['hrllenegociada','horallegadanegociada'], llePlan:['hrlleplan','horallegadaplan'], lleReal:['hrllereal','horallegadareal']
+};
+const MOV_COLS = {
+  sscc:['etiquetasscc','sscc'], temp:['cattemp','categoriatemp','cattemperatura','temperatura'],
+  recep:['fechaderecepcion','fecharecepcion'], zonaje:['fechazonaje','fechadezonaje'],
+  estado:['estadoetiqueta','estado'], operador:['operador','operario'],
+  paquetes:['numpaquetepos','numpaquetes','paquetes'], pallets:['numtotpalpos','numpallets','pallets'],
+  agExp:['agenciaexpediora','agenciaexpedidora'], agProp:['agenciaproprietaria','agenciapropietaria']
+};
+function buildMap(headers, spec){
+  const nh = headers.map(h => [h, norm(h)]); const map = {};
+  for (const [field, aliases] of Object.entries(spec)){
+    for (const a of aliases){ const hit = nh.find(([,n]) => n === a); if (hit){ map[field] = hit[0]; break; } }
+    if (!map[field]) for (const a of aliases){ if (a.length < 5) continue; const hit = nh.find(([,n]) => n.startsWith(a)); if (hit){ map[field] = hit[0]; break; } }
+  }
+  return map;
+}
+const clean = v => v==null ? '' : String(v).trim();
+const num = v => { if (v==null||v==='') return 0; const n = Number(String(v).replace(',','.')); return isFinite(n) ? n : 0; };
+
+/* Fechas: todo se guarda como milisegundos "naive" en UTC para evitar desfases horarios */
+function parseDT(v, baseMs){
+  if (v==null || v==='') return null;
+  if (v instanceof Date) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds());
+  if (typeof v === 'number'){
+    if (!isFinite(v)) return null;
+    if (v < 1) return baseMs==null ? null : baseMs + Math.round(v*1440)*60000;
+    return Math.round((v - 25569) * DAY / 60000) * 60000;
+  }
+  const s = String(v).trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/))) return Date.UTC(+m[1], m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); }
+  if ((m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/))) return baseMs==null ? null : baseMs + (+m[1]*60 + +m[2])*60000;
+  const n = Number(s.replace(',','.')); if (s && isFinite(n)) return parseDT(n, baseMs);
+  return null;
+}
+function delayMin(real, plan){ if (real==null || plan==null) return null; let d = (real - plan)/60000; while (d > 720) d -= 1440; while (d < -720) d += 1440; return d; }
+const turnoOf = h => h >= 6 && h < 14 ? 'Mañana' : (h >= 14 && h < 22 ? 'Tarde' : 'Noche');
+const TURNOS = [['Mañana',[6,7,8,9,10,11,12,13]],['Tarde',[14,15,16,17,18,19,20,21]],['Noche',[22,23,0,1,2,3,4,5]]];
+function normTemp(v){ const s = clean(v).toUpperCase(); if (!s) return 'Sin categoría'; if (s.startsWith('FR')) return 'FR'; if (s.startsWith('SU')) return 'SU'; return s; }
+const tempKey = t => t==='FR' ? 'FR' : t==='SU' ? 'SU' : 'Otras';
+
+function buildTrips(rows, map){
+  const out = [];
+  for (const r of rows){
+    const f = parseDT(r[map.fecha]); if (f==null) continue;
+    const base = Math.floor(f/DAY)*DAY;
+    const sp = parseDT(r[map.salPlan], base), sr = parseDT(r[map.salReal], base);
+    const ln = parseDT(r[map.lleNeg], base), lp = parseDT(r[map.llePlan], base), lr = parseDT(r[map.lleReal], base);
+    out.push({ day: base/DAY, agencia: clean(r[map.agencia]) || 'Sin agencia', cod: clean(r[map.cod]), nom: clean(r[map.nom]),
+      salDelay: delayMin(sr, sp), lleDelay: delayMin(lr, ln ?? lp) });
+  }
+  return out;
+}
+function buildMoves(rows, map){
+  const out = [];
+  for (const r of rows){
+    const rc = parseDT(r[map.recep]), zn = parseDT(r[map.zonaje]);
+    const act = zn ?? rc; if (act==null) continue;
+    let dwell = null;
+    if (rc!=null && zn!=null){ const d = (zn - rc)/60000; if (d >= 0 && d < 10080) dwell = d; }
+    const hour = new Date(act).getUTCHours();
+    out.push({ temp: normTemp(r[map.temp]), estado: clean(r[map.estado]) || 'Sin estado', op: clean(r[map.operador]),
+      paq: num(r[map.paquetes]), pal: num(r[map.pallets]), ag: clean(r[map.agExp]) || 'Sin agencia',
+      day: Math.floor(act/DAY), hour, turno: turnoOf(hour), dwell, zonado: zn!=null });
+  }
+  return out;
+}
+
+/* ---------- Lectura del Excel ---------- */
+function headersOf(ws){ const rows = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:false}); return (rows[0]||[]).map(clean); }
+function pickSheet(wb, key, spec, required){
+  let name = wb.SheetNames.find(n => norm(n).includes(key));
+  if (!name) name = wb.SheetNames.find(n => { const m = buildMap(headersOf(wb.Sheets[n]), spec); return required.every(r => m[r]); });
+  return name;
+}
+function loadWorkbook(buf, fileName){
+  if (!window.XLSX) throw new Error('No se pudo cargar la librería de Excel. Revisa la conexión a Internet y recarga la página.');
+  const wb = XLSX.read(buf, {type:'array'});
+  const tName = pickSheet(wb, 'bdllenac', TRIP_COLS, ['fecha','lleReal']);
+  const mName = pickSheet(wb, 'bdmoviq', MOV_COLS, ['operador','zonaje']);
+  if (!tName && !mName) throw new Error('No encuentro las hojas BD_LLE_NAC ni BD_MOV_IQ en ' + fileName + '.');
+  const warn = [];
+  let trips = [], moves = [];
+  if (tName){ const ws = wb.Sheets[tName]; const map = buildMap(headersOf(ws), TRIP_COLS); if (!map.fecha) warn.push('BD_LLE_NAC sin columna F.VIAJE'); trips = buildTrips(XLSX.utils.sheet_to_json(ws, {defval:null, raw:true}), map); }
+  else warn.push('falta la hoja BD_LLE_NAC');
+  if (mName){ const ws = wb.Sheets[mName]; const map = buildMap(headersOf(ws), MOV_COLS); ['recep','zonaje','operador'].forEach(k => { if (!map[k]) warn.push('BD_MOV_IQ sin columna ' + ({recep:'Fecha de recepción',zonaje:'Fecha Zonaje',operador:'Operador'})[k]); }); moves = buildMoves(XLSX.utils.sheet_to_json(ws, {defval:null, raw:true}), map); }
+  else warn.push('falta la hoja BD_MOV_IQ');
+  return { trips, moves, warn };
+}
+
+/* ---------- Datos de ejemplo (inventados) ---------- */
+function sample(){
+  let seed = 20261104; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const ops = [['García M.',0],['López A.',0],['Martínez J.',0],['Sánchez R.',0],['Pérez L.',0],['Gómez D.',1],['Ruiz F.',1],['Navarro C.',1],['Torres I.',1],['Romero P.',2],['Ortega S.',2],['Castillo E.',2],['Molina V.',2],['Herrera N.',2],['Vidal B.',2],['Serrano T.',2]];
+  const speed = ops.map(() => 0.7 + rnd()*0.7);
+  const ags = ['Madrid','Barcelona','Sevilla','Zaragoza','Murcia','Bilbao','Alicante','Castellón','Málaga'];
+  const bias = {Sevilla:28, Bilbao:19, 'Málaga':12};
+  const prof = [70,80,92,98,94,86,64,52,40,32,28,24,22,26,36,46,50,46,42,36,38,46,56,64];
+  const shiftOf = h => h>=6&&h<14 ? 0 : h>=14&&h<22 ? 1 : 2;
+  const end = Math.floor(Date.UTC(2026,10,4)/DAY), toSerial = ms => ms/DAY + 25569;
+  const T = [], M = [];
+  for (let d = end-13; d <= end; d++){
+    const dow = new Date(d*DAY).getUTCDay(); const df = dow===0 ? 0.35 : dow===6 ? 0.7 : 1;
+    const nTrips = Math.round(24*df);
+    for (let i = 0; i < nTrips; i++){
+      const ag = ags[Math.floor(rnd()*ags.length)];
+      const sp = 0.74 + rnd()*0.2, ss = sp + ((rnd()-0.45)*30 + (rnd()<0.07?50:0))/1440;
+      const lp = 0.08 + rnd()*0.22; const delay = (bias[ag]||0) + (rnd()-0.45)*36 + (rnd()<0.08 ? 40+rnd()*60 : 0);
+      T.push({'F.VIAJE': toSerial(d*DAY), 'NOM_VIAJE': ag + '-VLC', 'COD_VIAJE': 'V' + d + pad(i), 'HR_SAL_PLAN': sp, 'HR_SAL_REAL': rnd()<0.02?null:ss % 1,
+        'AGENCIA EXPEDIDORA': ag, 'HR_LLE_NEGOCIADA': lp, 'HR_LLE_PLAN': lp, 'HR_LLE_REAL': rnd()<0.03?null:((lp + delay/1440) % 1 + 1) % 1});
+    }
+    for (let h = 0; h < 24; h++){
+      const n = Math.round(prof[h]*(0.8+rnd()*0.4)*df);
+      const pool = ops.map((o,i) => i).filter(i => ops[i][1] === shiftOf(h));
+      const wsum = pool.reduce((s,i) => s + speed[i], 0);
+      for (let k = 0; k < n; k++){
+        let r = rnd()*wsum, oi = pool[0]; for (const i of pool){ r -= speed[i]; if (r <= 0){ oi = i; break; } }
+        const temp = rnd() < 0.62 ? 'FR' : (rnd() < 0.9 ? 'SU' : 'MI');
+        let dwell = temp==='SU' ? 8 + rnd()*rnd()*70 : 6 + rnd()*rnd()*55; if (h>=2 && h<=5) dwell *= 1.6; if (rnd() < 0.03) dwell = 120 + rnd()*200;
+        const zon = d*DAY + h*3600e3 + Math.floor(rnd()*3600e3), rec = zon - dwell*60000;
+        const pending = d===end && h>=21 && rnd()<0.25;
+        M.push({'Etiqueta SSCC': '38437' + String(Math.floor(rnd()*1e12)).padStart(12,'0'), 'Cat Temp': temp, 'Fecha de recepción': toSerial(rec),
+          'Fecha Zonaje': pending ? null : toSerial(zon), 'Estado Etiqueta': pending ? 'Recibido' : 'Zonado', 'Operador': pending ? null : ops[oi][0],
+          'Num Paquete Pos.': 1 + Math.floor(rnd()*40), 'Num Tot Pal Pos': 1, 'Agencia expedidiora': ags[Math.floor(rnd()*ags.length)]});
+      }
+    }
+  }
+  return { trips: buildTrips(T, buildMap(Object.keys(T[0]), TRIP_COLS)), moves: buildMoves(M, buildMap(Object.keys(M[0]), MOV_COLS)) };
+}
+
+/* ---------- Filtros y parámetros ---------- */
+function fillSelect(id, values, allLabel){
+  const sel = $(id), cur = sel.value;
+  sel.innerHTML = '<option value="">' + allLabel + '</option>' + values.map(v => '<option>' + esc(v) + '</option>').join('');
+  sel.value = values.includes(cur) ? cur : '';
+}
+const uniq = a => [...new Set(a)].filter(Boolean).sort((x,y) => x.localeCompare(y,'es'));
+function setupFilters(){
+  fillSelect('fOp', uniq(state.moves.map(m => m.op)), 'Todos');
+  fillSelect('fTemp', uniq(state.moves.map(m => m.temp)), 'Todas');
+  fillSelect('fEstado', uniq(state.moves.map(m => m.estado)), 'Todos');
+  fillSelect('fAg', uniq(state.trips.map(t => t.agencia).concat(state.moves.map(m => m.ag))), 'Todas');
+  const days = state.moves.map(m => m.day).concat(state.trips.map(t => t.day));
+  if (days.length){ let lo = Infinity, hi = -Infinity; for (const d of days){ if (d<lo) lo=d; if (d>hi) hi=d; } state.minDay = lo; state.maxDay = hi; $('fFrom').value = isoDay(lo); $('fTo').value = isoDay(hi); $('fFrom').min = $('fTo').min = isoDay(lo); $('fFrom').max = $('fTo').max = isoDay(hi); }
+}
+const dayOfInput = v => v ? Math.floor(Date.parse(v + 'T00:00:00Z')/DAY) : null;
+function readFilters(){
+  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity,
+    turno: $('fTurno').value, op: $('fOp').value, temp: $('fTemp').value, estado: $('fEstado').value, ag: $('fAg').value };
+}
+function readParams(){
+  const v = id => { const n = parseFloat($(id).value); return isFinite(n) && n > 0 ? n : null; };
+  return { sla: v('pSla') || 30, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7 };
+}
+
+/* ---------- Cálculo ---------- */
+function compute(){
+  const f = readFilters(), p = readParams();
+  const moves = state.moves.filter(m => m.day >= f.from && m.day <= f.to && (!f.turno || m.turno===f.turno) && (!f.op || m.op===f.op) && (!f.temp || m.temp===f.temp) && (!f.estado || m.estado===f.estado) && (!f.ag || m.ag===f.ag));
+  const trips = state.trips.filter(t => t.day >= f.from && t.day <= f.to && (!f.ag || t.agencia===f.ag));
+  const work = moves.filter(m => m.zonado && m.op);
+  const pending = moves.filter(m => !m.zonado);
+  const moveDays = [...new Set(moves.map(m => m.day))];
+  const nDays = moveDays.length || 1;
+
+  // Operadores
+  const opMap = new Map();
+  for (const m of work){
+    let o = opMap.get(m.op); if (!o){ o = {op:m.op, sscc:0, paq:0, pal:0, slots:new Set(), dw:[], turnos:{}}; opMap.set(m.op, o); }
+    o.sscc++; o.paq += m.paq; o.pal += m.pal; o.slots.add(m.day*24 + m.hour); if (m.dwell!=null) o.dw.push(m.dwell); o.turnos[m.turno] = (o.turnos[m.turno]||0) + 1;
+  }
+  const ops = [...opMap.values()].map(o => ({...o, hours:o.slots.size, rate:o.sscc/o.slots.size, dwMed: median(o.dw), dwIn: o.dw.length ? o.dw.filter(x => x <= p.sla).length/o.dw.length : null,
+    turno: Object.entries(o.turnos).sort((a,b) => b[1]-a[1])[0][0]}));
+  const solid = ops.filter(o => o.hours >= 4);
+  const autoTarget = median((solid.length ? solid : ops).map(o => o.rate));
+  const target = p.target || autoTarget || null;
+  for (const o of ops){ o.vs = target ? o.rate/target : null; o.status = o.hours < 2 ? 'mute' : o.vs >= 1 ? 'good' : o.vs >= 0.8 ? 'warn' : 'bad'; }
+  ops.sort((a,b) => b.rate - a.rate);
+  const totHours = ops.reduce((s,o) => s + o.hours, 0);
+  const globalRate = totHours ? work.length/totHours : null;
+
+  // Perfil horario
+  const hour = Array.from({length:24}, () => ({FR:0, SU:0, Otras:0, tot:0, slots:new Set()}));
+  for (const m of work){ const h = hour[m.hour]; h[tempKey(m.temp)]++; h.tot++; h.slots.add(m.day + '|' + m.op); }
+  const hours = hour.map((h,i) => { const avg = h.tot/nDays; return { h:i, FR:h.FR/nDays, SU:h.SU/nDays, Otras:h.Otras/nDays, avg, present: h.slots.size/nDays, need: target && avg > 0 ? avg/target : 0 }; });
+
+  // Turnos
+  const turnos = TURNOS.map(([name, hs]) => {
+    const ms = work.filter(m => m.turno === name);
+    const dayOps = new Set(ms.map(m => m.day + '|' + m.op));
+    const opHours = hs.reduce((s,h) => s + hours[h].present, 0);
+    const ssccDay = ms.length/nDays;
+    const need = target ? ssccDay/(target*p.hours) : null;
+    const have = dayOps.size/nDays;
+    return { name, ssccDay, have, opHours, rate: opHours ? ssccDay/opHours : null, need, diff: need!=null ? Math.round(have - Math.ceil(need - 0.05)) : null };
+  });
+
+  // Recepción → zonaje
+  const dw = moves.filter(m => m.dwell!=null).map(m => m.dwell);
+  const dwByTemp = ['FR','SU','Otras'].map(k => { const ms = moves.filter(m => tempKey(m.temp)===k); const a = ms.filter(m => m.dwell!=null).map(m => m.dwell);
+    return { k, n: ms.length, med: median(a), p90: quantile(a,.9), inSla: a.length ? a.filter(x => x <= p.sla).length/a.length : null, pend: ms.filter(m => !m.zonado).length }; }).filter(r => r.n);
+  const dwHour = Array.from({length:24}, (_,h) => median(moves.filter(m => m.hour===h && m.dwell!=null).map(m => m.dwell)));
+
+  // Viajes
+  const lle = trips.filter(t => t.lleDelay!=null), sal = trips.filter(t => t.salDelay!=null);
+  const onTime = (a, k) => a.length ? a.filter(t => t[k] <= p.tol).length/a.length : null;
+  const agMap = new Map();
+  for (const t of trips){ let a = agMap.get(t.agencia); if (!a){ a = {ag:t.agencia, n:0, lle:[], sal:[]}; agMap.set(t.agencia, a); } a.n++; if (t.lleDelay!=null) a.lle.push(t.lleDelay); if (t.salDelay!=null) a.sal.push(t.salDelay); }
+  const ags = [...agMap.values()].map(a => ({ ag:a.ag, n:a.n, puntSal: a.sal.length ? a.sal.filter(x => x<=p.tol).length/a.sal.length : null, puntLle: a.lle.length ? a.lle.filter(x => x<=p.tol).length/a.lle.length : null,
+    avg: a.lle.length ? a.lle.reduce((s,x) => s+x, 0)/a.lle.length : null, max: a.lle.length ? Math.max(...a.lle) : null }))
+    .map(a => ({...a, status: a.puntLle==null ? 'mute' : a.puntLle >= 0.9 ? 'good' : a.puntLle >= 0.8 ? 'warn' : 'bad'}))
+    .sort((x,y) => (x.puntLle ?? 2) - (y.puntLle ?? 2) || y.n - x.n);
+
+  // Días
+  const allDays = [...new Set(moves.map(m => m.day).concat(trips.map(t => t.day)))].sort((a,b) => a-b);
+  const daily = allDays.map(d => { const tr = trips.filter(t => t.day===d); return { d, sscc: work.filter(m => m.day===d).length, trips: tr.length,
+    pSal: onTime(tr.filter(t => t.salDelay!=null),'salDelay'), pLle: onTime(tr.filter(t => t.lleDelay!=null),'lleDelay') }; });
+
+  return { f, p, moves, trips, work, pending, nDays, ops, target, autoTarget, globalRate, hours, turnos, dw, dwByTemp, dwHour,
+    lle, sal, puntLle: onTime(lle,'lleDelay'), puntSal: onTime(sal,'salDelay'), ags, daily, noReal: trips.length - lle.length };
+}
+
+/* ---------- Alertas ---------- */
+function buildAlerts(r){
+  const A = [], p = r.p;
+  // Huecos de plantilla por franja
+  if (r.target){
+    const runs = (test) => { const out = []; let cur = null;
+      r.hours.forEach(h => { const v = test(h); if (v != null){ if (!cur) cur = {a:h.h, b:h.h, max:v}; else { cur.b = h.h; cur.max = Math.max(cur.max, v); } } else if (cur){ out.push(cur); cur = null; } });
+      if (cur) out.push(cur);
+      if (out.length > 1 && out[0].a === 0 && out[out.length-1].b === 23){ const last = out.pop(); out[0] = {a:last.a, b:out[0].b, max:Math.max(last.max, out[0].max)}; }
+      return out; };
+    const span = x => `entre las ${pad(x.a)}:00 y las ${pad((x.b+1)%24)}:00`;
+    for (const x of runs(h => { const g = h.need - h.present; return g >= 0.75 ? g : null; })){ const n = Math.ceil(x.max - 0.25);
+      A.push({s: x.max >= 1.5 ? 'bad' : 'warn', t: `${n===1 ? 'Falta ~1 operador' : 'Faltan ~' + n + ' operadores'} ${span(x)} para el objetivo de ${fmt1(r.target)} SSCC/h.`}); }
+    for (const x of runs(h => { const e = h.present - h.need; return h.present > 0 && e >= 1.5 ? e : null; })){ if (((x.b - x.a + 24) % 24) < 1) continue; const n = Math.floor(x.max);
+      A.push({s:'info', t:`Posible exceso de ~${n} ${n===1?'operador':'operadores'} ${span(x)}. Se podrían reasignar a otra franja.`}); }
+  }
+  for (const t of r.dwByTemp){ if (t.p90!=null && t.p90 > p.sla*2) A.push({s:'bad', t:`${t.k}: el 10% más lento tarda más de ${minLabel(t.p90)} en zonarse (objetivo ${p.sla} min).`}); else if (t.inSla!=null && t.inSla < 0.8) A.push({s:'warn', t:`${t.k}: solo el ${pct(t.inSla)} de los palets se zona en menos de ${p.sla} min.`}); }
+  if (r.pending.length) A.push({s: r.pending.length > 50 ? 'warn' : 'info', t:`${fmt(r.pending.length)} SSCC recibidos sin fecha de zonaje (pendientes en muelle).`});
+  const slowH = r.dwHour.map((m,h) => ({m,h})).filter(x => x.m!=null && x.m > p.sla).map(x => pad(x.h)+'h');
+  if (slowH.length) A.push({s:'warn', t:`Mediana de zonaje por encima del objetivo en: ${slowH.slice(0,8).join(', ')}${slowH.length>8?'…':''}.`});
+  for (const a of r.ags.filter(a => a.status==='bad' && a.n >= 3).slice(0,3)) A.push({s:'bad', t:`Agencia ${a.ag}: solo ${pct(a.puntLle)} de llegadas puntuales, retraso medio ${minLabel(a.avg)} (${a.n} viajes).`});
+  for (const o of r.ops.filter(o => o.status==='bad' && o.hours >= 4).slice(0,3)) A.push({s:'warn', t:`${o.op}: ${fmt1(o.rate)} SSCC/h, un ${pct(1-o.vs)} por debajo del objetivo.`});
+  if (r.noReal > 0) A.push({s:'info', t:`${fmt(r.noReal)} viajes sin hora real de llegada; no cuentan en la puntualidad.`});
+  if (!A.length) A.push({s:'good', t:'Sin incidencias con los parámetros actuales.'});
+  const order = {bad:0, warn:1, info:2, good:3}; return A.sort((a,b) => order[a.s]-order[b.s]);
+}
+
+/* ---------- Pintado ---------- */
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setKpi(id, value, sub, s){ const el = $(id); el.querySelector('strong').textContent = value; el.querySelector('em').textContent = sub || ''; if (s) el.dataset.s = s; else delete el.dataset.s; }
+const sLevel = (v, good, warn) => v==null ? null : v >= good ? 'good' : v >= warn ? 'warn' : 'bad';
+const LABEL = {good:'Bien', warn:'Vigilar', bad:'Mejorar', mute:'Poca actividad', info:'Info'};
+
+function render(){
+  const r = compute(); state.last = r; const p = r.p;
+  $('rangeLabel').textContent = isFinite(r.f.from) ? `Del ${dayLabel(r.f.from)} al ${dayLabel(r.f.to)} · ${r.nDays} días con movimientos` : '';
+  setKpi('kViajes', fmt(r.trips.length), r.trips.length ? `Salida puntual ${pct(r.puntSal)}` : 'Sin viajes en el rango');
+  setKpi('kPuntLle', pct(r.puntLle), `Tolerancia ±${p.tol} min · ${fmt(r.lle.length)} con hora real`, sLevel(r.puntLle, .9, .8));
+  setKpi('kSSCC', fmt(r.work.length), `${fmt(r.work.length/r.nDays)} al día · ${fmt(r.pending.length)} pendientes`);
+  setKpi('kRate', fmt1(r.globalRate), r.target ? `Objetivo ${fmt1(r.target)}${r.p.target ? '' : ' (auto)'}` : '', r.target && r.globalRate ? sLevel(r.globalRate/r.target, 1, .85) : null);
+  const inSla = r.dw.length ? r.dw.filter(x => x <= p.sla).length/r.dw.length : null;
+  setKpi('kDwell', minLabel(median(r.dw)), `Mediana · ${pct(inSla)} en menos de ${p.sla} min`, sLevel(inSla, .9, .75));
+  const need = r.turnos.reduce((s,t) => s + (t.need!=null ? Math.ceil(t.need - 0.05) : 0), 0), have = r.turnos.reduce((s,t) => s + t.have, 0);
+  setKpi('kStaff', r.target ? `${fmt1(have)} / ${need}` : '—', 'Operadores/día reales vs necesarios', r.target ? (have >= need ? 'good' : have >= need*0.9 ? 'warn' : 'bad') : null);
+
+  const alerts = buildAlerts(r);
+  $('alertCount').textContent = `${alerts.filter(a => a.s==='bad').length} críticas · ${alerts.filter(a => a.s==='warn').length} avisos`;
+  $('alerts').innerHTML = alerts.map(a => `<li><span class="chip ${a.s}">${a.s==='bad'?'Crítica':a.s==='warn'?'Aviso':a.s==='good'?'OK':'Info'}</span><span>${esc(a.t)}</span></li>`).join('');
+  state.alerts = alerts;
+
+  $('hourSub').textContent = r.target ? `SSCC medios por día y hora · objetivo ${fmt1(r.target)} SSCC/h por operador` : 'SSCC medios por día y hora';
+  $('tTurnos').tBodies[0].innerHTML = r.turnos.map(t => { const d = t.diff; const chip = d==null ? '<span class="chip mute">—</span>' : d < 0 ? `<span class="chip bad">${d===-1?'Falta 1':'Faltan '+(-d)}</span>` : d >= 2 ? `<span class="chip info">Sobran ${d}</span>` : '<span class="chip good">Ajustado</span>';
+    return `<tr><td><strong>${t.name}</strong></td><td class="n">${fmt(t.ssccDay)}</td><td class="n">${fmt1(t.have)}</td><td class="n">${fmt1(t.opHours)}</td><td class="n">${fmt1(t.rate)}</td><td class="n">${t.need!=null ? Math.ceil(t.need - 0.05) : '—'}</td><td>${chip}</td></tr>`; }).join('');
+  renderHeat(r);
+
+  $('dwellSub').textContent = `${fmt(r.dw.length)} palets · objetivo ${p.sla} min · P90 ${minLabel(quantile(r.dw,.9))}`;
+  const TC = {FR:'--fr', SU:'--su', Otras:'--other'};
+  $('tTemp').tBodies[0].innerHTML = r.dwByTemp.map(t => `<tr><td><span class="tempdot" style="background:var(${TC[t.k]})"></span>${t.k==='FR'?'FR · refrigerado':t.k==='SU'?'SU · congelado':'Otras'}</td><td class="n">${fmt(t.n)}</td><td class="n">${minLabel(t.med)}</td><td class="n">${minLabel(t.p90)}</td><td class="n">${pct(t.inSla)}</td><td class="n">${fmt(t.pend)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos</td></tr>';
+
+  $('tolSub').textContent = `% de viajes dentro de ±${p.tol} min`;
+  $('tAg').tBodies[0].innerHTML = r.ags.map(a => `<tr><td>${esc(a.ag)}</td><td class="n">${fmt(a.n)}</td><td class="n">${pct(a.puntSal)}</td><td class="n">${pct(a.puntLle)}</td><td class="n">${minLabel(a.avg)}</td><td class="n">${minLabel(a.max)}</td><td><span class="chip ${a.status}">${LABEL[a.status]}</span></td></tr>`).join('') || '<tr><td colspan="7">Sin viajes en el rango</td></tr>';
+
+  $('opSub').textContent = r.target ? `Objetivo ${fmt1(r.target)} SSCC/h · verde ≥ objetivo · ámbar ≥ 80% · rojo < 80%` : '';
+  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.sscc)}</td><td class="n">${fmt(o.paq)}</td><td class="n">${fmt(o.hours)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td class="n">${minLabel(o.dwMed)}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="9">Sin actividad de operadores</td></tr>';
+
+  renderCharts(r);
+}
+
+function renderHeat(r){
+  const top = r.ops.slice().sort((a,b) => b.sscc - a.sscc).slice(0,15).map(o => o.op);
+  if (!top.length){ $('tHeat').innerHTML = '<tbody><tr><td class="lbl">Sin datos</td></tr></tbody>'; return; }
+  const grid = new Map(top.map(o => [o, new Array(24).fill(0)]));
+  for (const m of r.work){ const g = grid.get(m.op); if (g) g[m.hour]++; }
+  let max = 0; grid.forEach(g => g.forEach(v => { if (v/r.nDays > max) max = v/r.nDays; }));
+  const head = '<thead><tr><th>Operador</th>' + Array.from({length:24}, (_,h) => `<th>${pad(h)}</th>`).join('') + '</tr></thead>';
+  const body = top.map(o => '<tr><td class="lbl">' + esc(o) + '</td>' + grid.get(o).map((v,h) => { const a = v/r.nDays; const k = max ? Math.round(a/max*85) : 0;
+    return `<td style="background:color-mix(in srgb, var(--accent) ${k}%, var(--surface));color:${k > 50 ? 'var(--accent-ink)' : 'var(--ink)'}" title="${esc(o)} · ${pad(h)}:00 · ${fmt1(a)} SSCC/día">${a >= 0.5 ? fmt(a) : ''}</td>`; }).join('') + '</tr>').join('');
+  $('tHeat').innerHTML = head + '<tbody>' + body + '</tbody>';
+}
+
+function mk(id, config){
+  if (state.charts[id]) state.charts[id].destroy();
+  const canvas = $(id);
+  if (!window.Chart){ canvas.parentElement.innerHTML = '<div class="nochart">No se pudo cargar la librería de gráficos. Revisa la conexión a Internet.</div>'; return; }
+  state.charts[id] = new Chart(canvas, config);
+}
+function renderCharts(r){
+  if (!window.Chart) { ['cTrend','cHour','cDwell','cDwellHour','cPunct','cAgency','cOps'].forEach(id => $(id) && mk(id)); return; }
+  const C = { ink:tok('--ink'), muted:tok('--muted'), line:tok('--line'), accent:tok('--accent'), fr:tok('--fr'), su:tok('--su'), other:tok('--other'), good:tok('--good'), warn:tok('--warn'), bad:tok('--bad'), surface:tok('--surface') };
+  Chart.defaults.color = C.muted; Chart.defaults.borderColor = C.line; Chart.defaults.font.family = 'Barlow, system-ui, sans-serif'; Chart.defaults.font.size = 12;
+  Chart.defaults.plugins.legend.labels.boxWidth = 12; Chart.defaults.maintainAspectRatio = false; Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:300};
+  const grid = { color: C.line }, noGrid = { display:false };
+  const hl = r.hours.map(h => pad(h.h));
+
+  mk('cTrend', { data: { labels: r.daily.map(d => dayLabel(d.d)), datasets: [
+    { type:'bar', label:'SSCC zonados', data:r.daily.map(d => d.sscc), backgroundColor:C.accent, borderRadius:3, yAxisID:'y' },
+    { type:'line', label:'Viajes', data:r.daily.map(d => d.trips), borderColor:C.ink, backgroundColor:C.ink, pointRadius:3, tension:.25, yAxisID:'y1' } ] },
+    options: { interaction:{mode:'index', intersect:false}, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true, title:{display:true, text:'SSCC'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Viajes'}} } } });
+
+  mk('cHour', { data: { labels: hl, datasets: [
+    { type:'bar', label:'FR', data:r.hours.map(h => h.FR), backgroundColor:C.fr, stack:'s', yAxisID:'y' },
+    { type:'bar', label:'SU', data:r.hours.map(h => h.SU), backgroundColor:C.su, stack:'s', yAxisID:'y' },
+    { type:'bar', label:'Otras', data:r.hours.map(h => h.Otras), backgroundColor:C.other, stack:'s', yAxisID:'y' },
+    { type:'line', label:'Operadores presentes', data:r.hours.map(h => h.present), borderColor:C.ink, backgroundColor:C.ink, pointRadius:2, stepped:'middle', yAxisID:'y1' },
+    { type:'line', label:'Operadores necesarios', data:r.hours.map(h => h.need), borderColor:C.bad, backgroundColor:C.bad, borderDash:[5,4], pointRadius:2, stepped:'middle', yAxisID:'y1' } ] },
+    options: { interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ title: it => it[0].label + ':00 – ' + pad((+it[0].label+1)%24) + ':00', label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)}` } } },
+      scales:{ x:{stacked:true, grid:noGrid, title:{display:true, text:'Hora'}}, y:{stacked:true, grid, beginAtZero:true, title:{display:true, text:'SSCC/día'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Operadores'}} } } });
+
+  const B = [[0,15],[15,30],[30,45],[45,60],[60,90],[90,120],[120,240],[240,Infinity]];
+  const cnt = B.map(([a,b]) => r.dw.filter(x => x >= a && x < b).length);
+  mk('cDwell', { type:'bar', data:{ labels: B.map(([a,b]) => b===Infinity ? `> ${a/60} h` : b <= 60 ? `${a}–${b} min` : `${a}–${b}`), datasets:[{ label:'Palets', data:cnt,
+      backgroundColor: B.map(([a,b]) => b <= r.p.sla ? C.good : a >= r.p.sla*2 ? C.bad : C.warn), borderRadius:3 }] },
+    options:{ plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt(c.parsed.y)} palets · ${pct(r.dw.length ? c.parsed.y/r.dw.length : 0)}` } } }, scales:{ x:{grid:noGrid, title:{display:true, text:'Minutos'}}, y:{grid, beginAtZero:true} } } });
+
+  mk('cDwellHour', { type:'line', data:{ labels: hl, datasets:[
+    { label:'Mediana zonaje (min)', data:r.dwHour, borderColor:C.accent, backgroundColor:C.accent, pointRadius:2, tension:.3, spanGaps:true, fill:false },
+    { label:'Objetivo', data:hl.map(() => r.p.sla), borderColor:C.bad, borderDash:[5,4], pointRadius:0 } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} min` } } }, scales:{ x:{grid:noGrid, title:{display:true, text:'Hora de zonaje'}}, y:{grid, beginAtZero:true} } } });
+
+  mk('cPunct', { type:'line', data:{ labels: r.daily.map(d => dayLabel(d.d)), datasets:[
+    { label:'Salida puntual', data:r.daily.map(d => d.pSal==null ? null : d.pSal*100), borderColor:C.su, backgroundColor:C.su, pointRadius:3, tension:.25, spanGaps:true },
+    { label:'Llegada puntual', data:r.daily.map(d => d.pLle==null ? null : d.pLle*100), borderColor:C.accent, backgroundColor:C.accent, pointRadius:3, tension:.25, spanGaps:true },
+    { label:'Meta 90%', data:r.daily.map(() => 90), borderColor:C.good, borderDash:[5,4], pointRadius:0 } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}%` } } }, scales:{ x:{grid:noGrid}, y:{grid, min:0, max:100, ticks:{ callback: v => v + '%' } } } } });
+
+  const agS = r.ags.filter(a => a.avg!=null).slice().sort((a,b) => b.avg - a.avg).slice(0,12);
+  mk('cAgency', { type:'bar', data:{ labels: agS.map(a => a.ag), datasets:[{ label:'Retraso medio (min)', data: agS.map(a => Math.round(a.avg)),
+      backgroundColor: agS.map(a => a.avg > r.p.tol ? C.bad : a.avg > 0 ? C.warn : C.good), borderRadius:3 }] },
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${minLabel(c.parsed.x)} de media · ${agS[c.dataIndex].n} viajes` } } }, scales:{ x:{grid, title:{display:true, text:'Minutos'}}, y:{grid:noGrid} } } });
+
+  const opS = r.ops.filter(o => o.hours >= 1).slice(0,20);
+  mk('cOps', { type:'bar', data:{ labels: opS.map(o => o.op), datasets:[{ label:'SSCC/h', data: opS.map(o => +o.rate.toFixed(1)),
+      backgroundColor: opS.map(o => o.status==='good' ? C.good : o.status==='warn' ? C.warn : o.status==='bad' ? C.bad : C.other), borderRadius:3 }] },
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt1(c.parsed.x)} SSCC/h · ${fmt(opS[c.dataIndex].sscc)} SSCC en ${opS[c.dataIndex].hours} h` } } }, scales:{ x:{grid, beginAtZero:true, title:{display:true, text:'SSCC por hora activa'}}, y:{grid:noGrid} } } });
+}
+
+/* ---------- Utilidades de interfaz ---------- */
+let toastT; function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 4200); }
+function tableTSV(id){ return [...$(id).rows].map(tr => [...tr.cells].map(c => c.textContent.trim()).join('\t')).join('\n'); }
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
+  const txt = tableTSV(b.dataset.copy);
+  const done = () => toast('Tabla copiada. Pégala en Excel con Ctrl+V.');
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch(e){ toast('No se pudo copiar. Selecciona la tabla y cópiala a mano.'); } ta.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
+}));
+$('exportXlsx').addEventListener('click', () => {
+  const r = state.last; if (!r || !window.XLSX){ toast('No se pudo cargar la librería de Excel.'); return; }
+  const wb = XLSX.utils.book_new();
+  const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:'Sin datos'}]), name);
+  add('Operadores', r.ops.map(o => ({Operador:o.op, 'Turno habitual':o.turno, SSCC:o.sscc, Paquetes:o.paq, 'Horas activas':o.hours, 'SSCC/h':+o.rate.toFixed(2), 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', 'Mediana zonaje min':o.dwMed!=null ? Math.round(o.dwMed) : '', Estado:LABEL[o.status]})));
+  add('Turnos', r.turnos.map(t => ({Turno:t.name, 'SSCC/día':Math.round(t.ssccDay), 'Operadores/día':+t.have.toFixed(1), 'Horas-operador/día':+t.opHours.toFixed(1), 'SSCC/h':t.rate!=null ? +t.rate.toFixed(2) : '', 'Plantilla necesaria':t.need!=null ? Math.ceil(t.need-0.05) : ''})));
+  add('Carga por hora', r.hours.map(h => ({Hora:pad(h.h)+':00', 'SSCC/día FR':+h.FR.toFixed(1), 'SSCC/día SU':+h.SU.toFixed(1), 'SSCC/día otras':+h.Otras.toFixed(1), 'Operadores presentes':+h.present.toFixed(1), 'Operadores necesarios':+h.need.toFixed(1), 'Mediana zonaje min':r.dwHour[h.h]!=null ? Math.round(r.dwHour[h.h]) : ''})));
+  add('Agencias', r.ags.map(a => ({Agencia:a.ag, Viajes:a.n, 'Salida puntual %':a.puntSal!=null ? Math.round(a.puntSal*100) : '', 'Llegada puntual %':a.puntLle!=null ? Math.round(a.puntLle*100) : '', 'Retraso medio min':a.avg!=null ? Math.round(a.avg) : '', 'Peor retraso min':a.max!=null ? Math.round(a.max) : ''})));
+  add('Alertas', (state.alerts||[]).map(a => ({Nivel:a.s, Alerta:a.t})));
+  try { XLSX.writeFile(wb, 'Informe_Muelle_Valencia.xlsx'); toast('Informe generado. Si no se descarga, abre el dashboard desde el archivo index.html en tu PC.'); }
+  catch(e){ toast('Este visor no permite descargas. Usa "Copiar tabla" o abre index.html en tu PC.'); }
+});
+
+function applyTheme(t){ if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+applyTheme(store.get('to-theme'));
+$('themeBtn').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('to-theme', next); renderCharts(state.last);
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state.last && renderCharts(state.last));
+
+// Parámetros guardados en este navegador
+try { const saved = JSON.parse(store.get('to-params') || 'null'); if (saved) ['pSla','pTol','pTarget','pHours'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
+['pSla','pTol','pTarget','pHours'].forEach(id => $(id).addEventListener('change', () => { store.set('to-params', JSON.stringify(Object.fromEntries(['pSla','pTol','pTarget','pHours'].map(k => [k, $(k).value])))); render(); }));
+['fFrom','fTo','fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).addEventListener('change', render));
+$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
+
+$('excelFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  $('sourceLabel').textContent = 'Leyendo ' + file.name + '…';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const res = loadWorkbook(new Uint8Array(ev.target.result), file.name);
+      if (!res.trips.length && !res.moves.length) throw new Error('Las hojas están vacías o no tienen fechas reconocibles.');
+      state.trips = res.trips; state.moves = res.moves; state.source = 'file'; state.fileName = file.name;
+      $('sourceLabel').textContent = `${file.name} · ${fmt(res.trips.length)} viajes · ${fmt(res.moves.length)} SSCC`;
+      const banner = $('banner');
+      if (res.warn.length){ banner.hidden = false; banner.classList.add('error'); banner.querySelector('b').textContent = 'Revisa'; $('bannerText').textContent = 'Archivo cargado con avisos: ' + res.warn.join('; ') + '.'; }
+      else banner.hidden = true;
+      setupFilters(); render(); toast('Excel cargado: ' + file.name);
+    } catch(err){
+      $('sourceLabel').textContent = state.source === 'file' ? state.fileName : 'Datos de ejemplo';
+      const banner = $('banner'); banner.hidden = false; banner.classList.add('error'); banner.querySelector('b').textContent = 'Error'; $('bannerText').textContent = err.message;
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Arranque con datos de ejemplo
+const s = sample(); state.trips = s.trips; state.moves = s.moves;
+$('sourceLabel').textContent = `Datos de ejemplo · ${fmt(s.trips.length)} viajes · ${fmt(s.moves.length)} SSCC · 14 días`;
+setupFilters(); render();
+})();
+</script>
+</body>
+</html>
