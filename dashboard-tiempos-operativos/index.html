@@ -160,7 +160,7 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
   <div class="frow">
     <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
     <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
-    <div class="field"><label for="fAct">Actividad</label><select id="fAct"><option value="CZ">Carga + zonaje</option><option value="C">Carga</option><option value="Z">Zonaje</option><option value="R">Recepción</option><option value="RCZ">Todas</option></select></div>
+    <div class="field"><label for="fAct">Actividad</label><select id="fAct"><option value="RCZ">Todas</option><option value="CZ">Carga + zonaje</option><option value="C">Carga</option><option value="Z">Zonaje</option><option value="R">Recepción</option></select></div>
     <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option></select></div>
     <div class="field"><label for="fOp">Operario</label><select id="fOp"><option value="">Todos</option></select></div>
     <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
@@ -171,13 +171,15 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
   <details class="params" id="paramsBox">
     <summary>Parámetros de cálculo</summary>
     <div class="frow">
-      <div class="field"><label for="pTarget">Objetivo SSCC/hora por operario</label><input type="number" id="pTarget" min="1" step="1" value="60" placeholder="Auto"></div>
+      <div class="field"><label for="pTarget">Objetivo puntos/hora por operario</label><input type="number" id="pTarget" min="1" step="1" value="60" placeholder="Auto"></div>
       <div class="field"><label for="pShift">Inicio del primer turno (hora)</label><input type="number" id="pShift" min="0" max="23" step="1" value="0"></div>
+      <div class="field"><label for="pJorn">Jornada máxima (h)</label><input type="number" id="pJorn" min="1" max="12" step="0.5" value="8"></div>
       <div class="field"><label for="pHours">Horas efectivas por turno</label><input type="number" id="pHours" min="1" max="12" step="0.5" value="7"></div>
       <div class="field"><label for="pSla">Objetivo tiempo en muelle (h)</label><input type="number" id="pSla" min="0.5" step="0.5" value="12"></div>
       <div class="field"><label for="pTol">Tolerancia puntualidad (min)</label><input type="number" id="pTol" min="0" value="15"></div>
     </div>
-    <p class="hint">Objetivo de la delegación: 60 SSCC/hora por operario (cargando o zonando). Si lo dejas vacío, se usa la mediana del equipo. Tres turnos de 8 h desde la hora de inicio (por defecto 00–08, 08–16, 16–24). Horas activas = horas de reloj en las que el operario registró al menos un movimiento de la actividad elegida. Tiempo en muelle = de la fecha de recepción a la fecha de carga de la etiqueta.</p>
+    <p class="hint">Objetivo de la delegación: 60 puntos/hora por operario. Si lo dejas vacío, se usa la mediana del equipo. Horas de jornada = del primer al último escaneo del operario en el día (cualquier actividad), con el máximo indicado. Tres turnos de 8 h desde la hora de inicio (por defecto 00–08, 08–16, 16–24). Tiempo en muelle = de la fecha de recepción a la fecha de carga de la etiqueta.</p>
+    <div class="table-wrap"><table id="tPts"><thead><tr><th>Puntos por SSCC</th><th class="n">FR</th><th class="n">SU</th><th class="n">NR / otras</th></tr></thead><tbody><tr><td>Recepción</td><td class="n">1</td><td class="n">1</td><td class="n">1</td></tr><tr><td>Zonaje</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr><tr><td>Carga</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr></tbody></table></div>
   </details>
 </div>
 
@@ -191,14 +193,14 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
     <div class="kpis">
       <article class="kpi" id="kViajes"><span>Viajes de llegada</span><strong>0</strong><em></em></article>
       <article class="kpi" id="kPuntLle"><span>Llegada puntual</span><strong>—</strong><em></em></article>
-      <article class="kpi" id="kSSCC"><span>SSCC movidos</span><strong>0</strong><em></em></article>
-      <article class="kpi" id="kRate"><span>SSCC / hora operario</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kSSCC"><span>Puntos</span><strong>0</strong><em></em></article>
+      <article class="kpi" id="kRate"><span>Puntos / hora operario</span><strong>—</strong><em></em></article>
       <article class="kpi" id="kDwell"><span>Tiempo en muelle</span><strong>—</strong><em></em></article>
       <article class="kpi" id="kStaff"><span>Plantilla vs necesidad</span><strong>—</strong><em></em></article>
     </div>
     <div class="grid g32">
       <article class="panel">
-        <div class="ptitle"><h3>Actividad diaria</h3><span id="trendSub">SSCC por día · viajes</span></div>
+        <div class="ptitle"><h3>Actividad diaria</h3><span id="trendSub">Puntos por día · viajes</span></div>
         <div class="chart-box"><canvas id="cTrend"></canvas></div>
       </article>
       <article class="panel">
@@ -216,10 +218,10 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
     </article>
     <article class="panel">
       <div class="ptitle"><h3>Dimensionamiento por turno</h3><span>Medias por día con actividad</span></div>
-      <div class="table-wrap"><table id="tTurnos"><thead><tr><th>Turno</th><th class="n">SSCC/día</th><th class="n">Operarios/día</th><th class="n">Horas-operario/día</th><th class="n">SSCC/h real</th><th class="n">Plantilla necesaria</th><th>Ajuste</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="tTurnos"><thead><tr><th>Turno</th><th class="n">Puntos/día</th><th class="n">Operarios/día</th><th class="n">Horas-operario/día</th><th class="n">Puntos/h real</th><th class="n">Plantilla necesaria</th><th>Ajuste</th></tr></thead><tbody></tbody></table></div>
     </article>
     <article class="panel">
-      <div class="ptitle"><h3>Operario × hora del día</h3><span>SSCC medios por día · los 15 operarios con más volumen</span></div>
+      <div class="ptitle"><h3>Operario × hora del día</h3><span>Puntos medios por día · los 15 operarios con más puntos</span></div>
       <div class="table-wrap"><table class="heat" id="tHeat"></table></div>
     </article>
   </section>
@@ -267,14 +269,14 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
   </section>
 
   <section id="operarios">
-    <div class="sechead"><h2>Operarios</h2><p>SSCC por hora activa (horas con al menos un movimiento de la actividad elegida)</p></div>
+    <div class="sechead"><h2>Operarios</h2><p>Puntos por hora de jornada (primer a último escaneo del día, máximo 8 h)</p></div>
     <article class="panel">
-      <div class="ptitle"><h3>SSCC por hora activa</h3><span id="opSub"></span></div>
+      <div class="ptitle"><h3>Puntos por hora de jornada</h3><span id="opSub"></span></div>
       <div class="chart-box tall"><canvas id="cOps"></canvas></div>
     </article>
     <article class="panel">
       <div class="ptitle"><h3>Eficiencia por operario</h3><button class="btn small" type="button" data-copy="tOps">Copiar tabla</button></div>
-      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Turno habitual</th><th class="n">Recepciones</th><th class="n">Zonajes</th><th class="n">Cargas</th><th class="n">Horas activas</th><th class="n">SSCC/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Turno habitual</th><th class="n">Recepciones</th><th class="n">Zonajes</th><th class="n">Cargas</th><th class="n">Jornadas</th><th class="n">Horas</th><th class="n">Puntos</th><th class="n">Pts/h</th><th class="n">Mov/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
     </article>
   </section>
 </main>
@@ -359,6 +361,7 @@ const turnoOf = h => TURNOS[shiftIdx(h)][0];
 function normTemp(v){ const s = clean(v).toUpperCase(); if (!s) return 'Sin categoría'; if (s.startsWith('FR')) return 'FR'; if (s.startsWith('SU')) return 'SU'; return s; }
 const tempKey = t => t==='FR' ? 'FR' : t==='SU' ? 'SU' : 'Otras';
 const KIND = {R:'Recepción', Z:'Zonaje', C:'Carga'};
+const POINTS = {R:{FR:1, SU:1, Otras:1}, Z:{FR:2, SU:4, Otras:2}, C:{FR:2, SU:4, Otras:2}};
 
 function buildTrips(rows, map){
   const out = [];
@@ -395,11 +398,12 @@ function finishRows(rows){
     for (const [k, ms, op] of [['R', r.rc, r.opR], ['Z', r.zn, r.opZ], ['C', r.cg, r.opC]]){
       if (ms==null || !op) continue; if (ms > end) end = ms;
       const hour = new Date(ms).getUTCHours();
-      events.push({ k, op, ms, day: Math.floor(ms/DAY), hour, turno: turnoOf(hour), temp: r.temp, estado: r.estado });
+      events.push({ k, op, ms, day: Math.floor(ms/DAY), hour, turno: turnoOf(hour), temp: r.temp, estado: r.estado, pts: POINTS[k][tempKey(r.temp)] });
     }
     if (r.rc!=null && r.rc > end) end = r.rc;
   }
-  state.rows = rows; state.events = events; state.dataEnd = end; state.shiftApplied = SHIFT_START;
+  const jor = new Map(); for (const e of events){ const key = e.op + '|' + e.day; const j = jor.get(key); if (!j) jor.set(key, [e.ms, e.ms]); else { if (e.ms < j[0]) j[0] = e.ms; if (e.ms > j[1]) j[1] = e.ms; } }
+  state.rows = rows; state.events = events; state.jornada = jor; state.dataEnd = end; state.shiftApplied = SHIFT_START;
 }
 
 /* ---------- Lectura del Excel ---------- */
@@ -506,12 +510,12 @@ function setupFilters(){
 }
 const dayOfInput = v => v ? Math.floor(Date.parse(v + 'T00:00:00Z')/DAY) : null;
 function readFilters(){
-  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, act: $('fAct').value || 'CZ',
+  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, act: $('fAct').value || 'RCZ',
     turno: $('fTurno').value, op: $('fOp').value, temp: $('fTemp').value, estado: $('fEstado').value, ag: $('fAg').value };
 }
 function readParams(){
   const v = id => { const n = parseFloat($(id).value); return isFinite(n) && n > 0 ? n : null; };
-  return { sla: (v('pSla') || 12)*60, slaH: v('pSla') || 12, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7,
+  return { sla: (v('pSla') || 12)*60, slaH: v('pSla') || 12, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7, jorn: v('pJorn') || 8,
     shift: parseInt($('pShift').value, 10) >= 0 ? parseInt($('pShift').value, 10) % 24 : 0 };
 }
 function applyShifts(){
@@ -534,24 +538,27 @@ function compute(){
   const rows = state.rows.filter(r => r.day >= f.from && r.day <= f.to && (!f.temp || r.temp===f.temp) && (!f.estado || r.estado===f.estado));
   const trips = state.trips.filter(t => t.day >= f.from && t.day <= f.to && (!f.ag || t.agencia===f.ag));
   const nDays = new Set(work.map(e => e.day)).size || 1;
-  const kCount = {R:0, Z:0, C:0}; for (const e of work) kCount[e.k]++;
+  const kCount = {R:0, Z:0, C:0}; let totPts = 0; for (const e of work){ kCount[e.k]++; totPts += e.pts; }
+  const jHours = (op, day) => { const j = state.jornada.get(op + '|' + day); return j ? Math.min((j[1] - j[0])/3600e3, p.jorn) : 0; };
 
   // Operarios
-  const opMap = new Map(); const get = op => { let o = opMap.get(op); if (!o){ o = {op, n:0, R:0, Z:0, C:0, slots:new Set(), turnos:{}}; opMap.set(op, o); } return o; };
+  const opMap = new Map(); const get = op => { let o = opMap.get(op); if (!o){ o = {op, n:0, pts:0, R:0, Z:0, C:0, days:new Set(), turnos:{}}; opMap.set(op, o); } return o; };
   for (const e of evAll) get(e.op)[e.k]++;
-  for (const e of work){ const o = get(e.op); o.n++; o.slots.add(e.day*24 + e.hour); o.turnos[e.turno] = (o.turnos[e.turno]||0) + 1; }
-  const ops = [...opMap.values()].map(o => ({...o, hours:o.slots.size, rate: o.slots.size ? o.n/o.slots.size : null, turno: (Object.entries(o.turnos).sort((a,b) => b[1]-a[1])[0] || ['—'])[0]}));
-  const active = ops.filter(o => o.hours > 0), solid = active.filter(o => o.hours >= 4);
+  for (const e of work){ const o = get(e.op); o.n++; o.pts += e.pts; o.days.add(e.day); o.turnos[e.turno] = (o.turnos[e.turno]||0) + 1; }
+  const ops = [...opMap.values()].map(o => { const hours = [...o.days].reduce((s,d) => s + jHours(o.op, d), 0);
+    return {...o, jornadas:o.days.size, hours, rate: hours >= 0.25 ? o.pts/hours : null, movH: hours >= 0.25 ? o.n/hours : null, turno: (Object.entries(o.turnos).sort((a,b) => b[1]-a[1])[0] || ['—'])[0]}; });
+  const active = ops.filter(o => o.rate != null), solid = active.filter(o => o.hours >= 16);
   const autoTarget = median((solid.length ? solid : active).map(o => o.rate));
   const target = p.target || autoTarget || null;
-  for (const o of ops){ o.vs = target && o.rate!=null ? o.rate/target : null; o.status = o.hours < 2 ? 'mute' : o.vs >= 1 ? 'good' : o.vs >= 0.8 ? 'warn' : 'bad'; }
+  for (const o of ops){ o.vs = target && o.rate!=null ? o.rate/target : null; o.status = o.hours < 4 ? 'mute' : o.vs >= 1 ? 'good' : o.vs >= 0.85 ? 'warn' : 'bad'; }
   ops.sort((a,b) => (b.rate ?? -1) - (a.rate ?? -1) || b.R + b.Z + b.C - a.R - a.Z - a.C);
   const totHours = active.reduce((s,o) => s + o.hours, 0);
-  const globalRate = totHours ? work.length/totHours : null;
+  const globalRate = totHours ? active.reduce((s,o) => s + o.pts, 0)/totHours : null;
+  const globalMov = totHours ? active.reduce((s,o) => s + o.n, 0)/totHours : null;
 
   // Perfil horario
   const hour = Array.from({length:24}, () => ({FR:0, SU:0, Otras:0, tot:0, slots:new Set()}));
-  for (const e of work){ const h = hour[e.hour]; h[tempKey(e.temp)]++; h.tot++; h.slots.add(e.day + '|' + e.op); }
+  for (const e of work){ const h = hour[e.hour]; h[tempKey(e.temp)] += e.pts; h.tot += e.pts; h.slots.add(e.day + '|' + e.op); }
   const hours = hour.map((h,i) => { const avg = h.tot/nDays; return { h:i, FR:h.FR/nDays, SU:h.SU/nDays, Otras:h.Otras/nDays, avg, present: h.slots.size/nDays, need: target && avg > 0 ? avg/target : 0 }; });
 
   // Turnos
@@ -559,7 +566,7 @@ function compute(){
     const es = work.filter(e => e.turno === name);
     const have = new Set(es.map(e => e.day + '|' + e.op)).size/nDays;
     const opHours = hs.reduce((s,h) => s + hours[h].present, 0);
-    const ssccDay = es.length/nDays; const need = target ? ssccDay/(target*p.hours) : null;
+    const ssccDay = es.reduce((s,e) => s + e.pts, 0)/nDays; const need = target ? ssccDay/(target*p.hours) : null;
     return { name, ssccDay, have, opHours, rate: opHours ? ssccDay/opHours : null, need, needInt: need!=null ? Math.max(ssccDay > 0 ? 1 : 0, Math.ceil(need - 0.05)) : null,
       diff: need!=null ? Math.round(have - Math.max(ssccDay > 0 ? 1 : 0, Math.ceil(need - 0.05))) : null };
   });
@@ -586,13 +593,13 @@ function compute(){
     .sort((x,y) => (x.puntLle ?? 2) - (y.puntLle ?? 2) || y.n - x.n);
 
   // Días
-  const wByDay = new Map(); for (const e of work) wByDay.set(e.day, (wByDay.get(e.day)||0) + 1);
+  const wByDay = new Map(); for (const e of work) wByDay.set(e.day, (wByDay.get(e.day)||0) + e.pts);
   const tByDay = new Map(); for (const t of trips){ if (!tByDay.has(t.day)) tByDay.set(t.day, []); tByDay.get(t.day).push(t); }
   const allDays = [...new Set([...wByDay.keys(), ...tByDay.keys()])].sort((a,b) => a-b);
   const daily = allDays.map(d => { const tr = tByDay.get(d) || []; return { d, sscc: wByDay.get(d) || 0, trips: tr.length,
     pSal: onTime(tr.filter(t => t.salDelay!=null),'salDelay'), pLle: onTime(tr.filter(t => t.lleDelay!=null),'lleDelay') }; });
 
-  return { f, p, kinds, work, kCount, rows, trips, nDays, ops, target, autoTarget, globalRate, hours, turnos, dw, dwAll, dwByTemp, dwByTipo, dwHour, zw,
+  return { f, p, kinds, work, kCount, totPts, globalMov, rows, trips, nDays, ops, target, autoTarget, globalRate, hours, turnos, dw, dwAll, dwByTemp, dwByTipo, dwHour, zw,
     lle, sal, puntLle: onTime(lle,'lleDelay'), puntSal: onTime(sal,'salDelay'), ags, daily, noReal: trips.length - lle.length };
 }
 
@@ -607,10 +614,11 @@ function buildAlerts(r){
       return out; };
     const span = x => `entre las ${pad(x.a)}:00 y las ${pad((x.b+1)%24)}:00`;
     for (const x of runs(h => { const g = h.need - h.present; return g >= 0.75 ? g : null; })){ const n = Math.ceil(x.max - 0.25);
-      A.push({s: x.max >= 1.5 ? 'bad' : 'warn', t: `${n===1 ? 'Falta ~1 operario' : 'Faltan ~' + n + ' operarios'} ${span(x)} para el objetivo de ${fmt(r.target)} SSCC/h.`}); }
+      A.push({s: x.max >= 1.5 ? 'bad' : 'warn', t: `${n===1 ? 'Falta ~1 operario' : 'Faltan ~' + n + ' operarios'} ${span(x)} para el objetivo de ${fmt(r.target)} puntos/h.`}); }
     for (const x of runs(h => { const e = h.present - h.need; return h.present > 0 && e >= 1.5 ? e : null; })){ if (((x.b - x.a + 24) % 24) < 1) continue; const n = Math.floor(x.max);
-      A.push({s:'info', t:`Con ${fmt(r.target)} SSCC/h sobrarían ~${n} ${n===1?'operario':'operarios'} ${span(x)}.`}); }
-    if (r.globalRate && r.globalRate < r.target*0.5) A.push({s:'bad', t:`El ritmo medio es de ${fmt1(r.globalRate)} SSCC por hora activa, un ${pct(r.globalRate/r.target)} del objetivo de ${fmt(r.target)}. Revisa si el objetivo cuenta las mismas unidades que el registro.`});
+      A.push({s:'info', t:`Con ${fmt(r.target)} puntos/h sobrarían ~${n} ${n===1?'operario':'operarios'} ${span(x)}.`}); }
+    if (r.globalRate && r.globalRate < r.target) A.push({s: r.globalRate < r.target*0.85 ? 'bad' : 'warn', t:`El equipo hace ${fmt1(r.globalRate)} puntos por hora de jornada, el ${pct(r.globalRate/r.target)} del objetivo de ${fmt(r.target)}.`});
+    const low = r.ops.filter(o => o.status === 'bad'); if (low.length) A.push({s:'warn', t:`${low.length} ${low.length===1 ? 'operario queda' : 'operarios quedan'} por debajo del 85% del objetivo: ${low.slice(0,4).map(o => o.op).join(', ')}${low.length > 4 ? '…' : ''}.`});
   }
   const old = r.dwAll.old;
   if (old){ const top = r.dwByTipo.filter(t => t.old).sort((a,b) => b.old - a.old)[0];
@@ -637,18 +645,18 @@ function render(){
   $('rangeLabel').textContent = isFinite(r.f.from) ? `Del ${dayLabel(r.f.from)} al ${dayLabel(r.f.to)} · ${r.nDays} días con actividad` : '';
   setKpi('kViajes', fmt(r.trips.length), r.trips.length ? `Salida puntual ${pct(r.puntSal)}` : 'Sin viajes en el rango');
   setKpi('kPuntLle', pct(r.puntLle), `Tolerancia ${p.tol} min · ${fmt(r.lle.length)} con hora real`, sLevel(r.puntLle, .9, .8));
-  setKpi('kSSCC', fmt(r.work.length), [...r.kinds].map(k => `${fmt(r.kCount[k])} ${KIND[k].toLowerCase()}`).join(' · ') + ` · ${fmt(r.work.length/r.nDays)}/día`);
-  setKpi('kRate', fmt1(r.globalRate), r.target ? `Objetivo ${fmt(r.target)}${r.p.target ? '' : ' (auto)'} · ${actLabel(r)}` : '', r.target && r.globalRate ? sLevel(r.globalRate/r.target, 1, .85) : null);
+  setKpi('kSSCC', fmt(r.totPts), `${fmt(r.work.length)} movimientos: ` + [...r.kinds].map(k => `${fmt(r.kCount[k])} ${KIND[k].toLowerCase()}`).join(' · '));
+  setKpi('kRate', fmt1(r.globalRate), (r.target ? `Objetivo ${fmt(r.target)}${r.p.target ? '' : ' (auto)'} · ` : '') + `${fmt1(r.globalMov)} mov/h`, r.target && r.globalRate ? sLevel(r.globalRate/r.target, 1, .85) : null);
   setKpi('kDwell', durLabel(r.dwAll.med), `Mediana recepción→carga · ${pct(r.dwAll.inSla)} en menos de ${fmt1(p.slaH)} h`, sLevel(r.dwAll.inSla, .9, .75));
   const need = r.turnos.reduce((s,t) => s + (t.needInt || 0), 0), have = r.turnos.reduce((s,t) => s + t.have, 0);
   setKpi('kStaff', r.target ? `${fmt1(have)} / ${need}` : '—', 'Operarios/día reales vs necesarios', r.target ? (have >= need ? 'good' : have >= need*0.9 ? 'warn' : 'bad') : null);
-  $('trendSub').textContent = `SSCC por día (${actLabel(r)}) · viajes`;
+  $('trendSub').textContent = `Puntos por día (${actLabel(r)}) · viajes`;
 
   const alerts = buildAlerts(r); state.alerts = alerts;
   $('alertCount').textContent = `${alerts.filter(a => a.s==='bad').length} críticas · ${alerts.filter(a => a.s==='warn').length} avisos`;
   $('alerts').innerHTML = alerts.map(a => `<li><span class="chip ${a.s}">${a.s==='bad'?'Crítica':a.s==='warn'?'Aviso':a.s==='good'?'OK':'Info'}</span><span>${esc(a.t)}</span></li>`).join('');
 
-  $('hourSub').textContent = `SSCC medios por día y hora (${actLabel(r)})` + (r.target ? ` · objetivo ${fmt(r.target)} SSCC/h por operario` : '');
+  $('hourSub').textContent = `Puntos medios por día y hora (${actLabel(r)})` + (r.target ? ` · objetivo ${fmt(r.target)} puntos/h por operario` : '');
   $('tTurnos').tBodies[0].innerHTML = r.turnos.map(t => { const d = t.diff; const chip = d==null ? '<span class="chip mute">—</span>' : d < 0 ? `<span class="chip bad">${d===-1?'Falta 1':'Faltan '+(-d)}</span>` : d >= 2 ? `<span class="chip info">Sobran ${d}</span>` : '<span class="chip good">Ajustado</span>';
     return `<tr><td><strong>${t.name}</strong></td><td class="n">${fmt(t.ssccDay)}</td><td class="n">${fmt1(t.have)}</td><td class="n">${fmt1(t.opHours)}</td><td class="n">${fmt1(t.rate)}</td><td class="n">${t.needInt ?? '—'}</td><td>${chip}</td></tr>`; }).join('');
   renderHeat(r);
@@ -661,21 +669,21 @@ function render(){
   $('tolSub').textContent = `% de viajes con menos de ${p.tol} min de retraso`;
   $('tAg').tBodies[0].innerHTML = r.ags.map(a => `<tr><td>${esc(a.ag)}</td><td class="n">${fmt(a.n)}</td><td class="n">${pct(a.puntSal)}</td><td class="n">${pct(a.puntLle)}</td><td class="n">${minLabel(a.avg)}</td><td class="n">${minLabel(a.max)}</td><td><span class="chip ${a.status}">${LABEL[a.status]}</span></td></tr>`).join('') || '<tr><td colspan="7">Sin viajes en el rango</td></tr>';
 
-  $('opSub').textContent = (r.target ? `Objetivo ${fmt(r.target)} SSCC/h · verde ≥ objetivo · ámbar ≥ 80% · rojo < 80%` : '') + ` · ${actLabel(r)}`;
-  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.R)}</td><td class="n">${fmt(o.Z)}</td><td class="n">${fmt(o.C)}</td><td class="n">${fmt(o.hours)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="9">Sin actividad</td></tr>';
+  $('opSub').textContent = (r.target ? `Objetivo ${fmt(r.target)} puntos/h · verde ≥ objetivo · ámbar ≥ 85% · rojo < 85%` : '') + ` · ${actLabel(r)}`;
+  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.R)}</td><td class="n">${fmt(o.Z)}</td><td class="n">${fmt(o.C)}</td><td class="n">${fmt(o.jornadas)}</td><td class="n">${fmt1(o.hours)}</td><td class="n">${fmt(o.pts)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${fmt1(o.movH)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="12">Sin actividad</td></tr>';
 
   renderCharts(r);
 }
 
 function renderHeat(r){
-  const top = r.ops.filter(o => o.n).sort((a,b) => b.n - a.n).slice(0,15).map(o => o.op);
+  const top = r.ops.filter(o => o.pts).sort((a,b) => b.pts - a.pts).slice(0,15).map(o => o.op);
   if (!top.length){ $('tHeat').innerHTML = '<tbody><tr><td class="lbl">Sin datos</td></tr></tbody>'; return; }
   const grid = new Map(top.map(o => [o, new Array(24).fill(0)]));
-  for (const e of r.work){ const g = grid.get(e.op); if (g) g[e.hour]++; }
+  for (const e of r.work){ const g = grid.get(e.op); if (g) g[e.hour] += e.pts; }
   let max = 0; grid.forEach(g => g.forEach(v => { if (v/r.nDays > max) max = v/r.nDays; }));
   const head = '<thead><tr><th>Operario</th>' + Array.from({length:24}, (_,h) => `<th>${pad(h)}</th>`).join('') + '</tr></thead>';
   const body = top.map(o => '<tr><td class="lbl">' + esc(o) + '</td>' + grid.get(o).map((v,h) => { const a = v/r.nDays; const k = max ? Math.round(a/max*85) : 0;
-    return `<td style="background:color-mix(in srgb, var(--accent) ${k}%, var(--surface));color:${k > 50 ? 'var(--accent-ink)' : 'var(--ink)'}" title="${esc(o)} · ${pad(h)}:00 · ${fmt1(a)} SSCC/día">${a >= 0.5 ? fmt(a) : ''}</td>`; }).join('') + '</tr>').join('');
+    return `<td style="background:color-mix(in srgb, var(--accent) ${k}%, var(--surface));color:${k > 50 ? 'var(--accent-ink)' : 'var(--ink)'}" title="${esc(o)} · ${pad(h)}:00 · ${fmt1(a)} puntos/día">${a >= 0.5 ? fmt(a) : ''}</td>`; }).join('') + '</tr>').join('');
   $('tHeat').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
 
@@ -695,9 +703,9 @@ function renderCharts(r){
   const hl = r.hours.map(h => pad(h.h));
 
   mk('cTrend', { data: { labels: r.daily.map(d => dayLabel(d.d)), datasets: [
-    { type:'bar', label:'SSCC', data:r.daily.map(d => d.sscc), backgroundColor:C.accent, borderRadius:3, yAxisID:'y' },
+    { type:'bar', label:'Puntos', data:r.daily.map(d => d.sscc), backgroundColor:C.accent, borderRadius:3, yAxisID:'y' },
     { type:'line', label:'Viajes', data:r.daily.map(d => d.trips), borderColor:C.ink, backgroundColor:C.ink, pointRadius:2, tension:.25, yAxisID:'y1' } ] },
-    options: { interaction:{mode:'index', intersect:false}, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true, title:{display:true, text:'SSCC'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Viajes'}} } } });
+    options: { interaction:{mode:'index', intersect:false}, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true, title:{display:true, text:'Puntos'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Viajes'}} } } });
 
   mk('cHour', { data: { labels: hl, datasets: [
     { type:'bar', label:'FR', data:r.hours.map(h => h.FR), backgroundColor:C.fr, stack:'s', yAxisID:'y' },
@@ -706,7 +714,7 @@ function renderCharts(r){
     { type:'line', label:'Operarios presentes', data:r.hours.map(h => h.present), borderColor:C.ink, backgroundColor:C.ink, pointRadius:2, stepped:'middle', yAxisID:'y1' },
     { type:'line', label:'Operarios necesarios', data:r.hours.map(h => h.need), borderColor:C.bad, backgroundColor:C.bad, borderDash:[5,4], pointRadius:2, stepped:'middle', yAxisID:'y1' } ] },
     options: { interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ title: it => it[0].label + ':00 – ' + pad((+it[0].label+1)%24) + ':00', label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)}` } } },
-      scales:{ x:{stacked:true, grid:noGrid, title:{display:true, text:'Hora'}}, y:{stacked:true, grid, beginAtZero:true, title:{display:true, text:'SSCC/día'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Operarios'}} } } });
+      scales:{ x:{stacked:true, grid:noGrid, title:{display:true, text:'Hora'}}, y:{stacked:true, grid, beginAtZero:true, title:{display:true, text:'Puntos/día'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Operarios'}} } } });
 
   const B = [[0,2],[2,4],[4,8],[8,12],[12,24],[24,48],[48,Infinity]].map(([a,b]) => [a*60, b*60]);
   const cnt = B.map(([a,b]) => r.dw.filter(x => x >= a && x < b).length);
@@ -730,11 +738,11 @@ function renderCharts(r){
       backgroundColor: agS.map(a => a.avg > r.p.tol ? C.bad : a.avg > 0 ? C.warn : C.good), borderRadius:3 }] },
     options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ title: it => agS[it[0].dataIndex].ag, label: c => `${minLabel(c.parsed.x)} de media · ${agS[c.dataIndex].n} viajes` } } }, scales:{ x:{grid, title:{display:true, text:'Minutos'}}, y:{grid:noGrid} } } });
 
-  const opS = r.ops.filter(o => o.hours >= 1).slice(0,25);
-  mk('cOps', { type:'bar', data:{ labels: opS.map(o => o.op), datasets:[{ label:'SSCC/h', data: opS.map(o => +o.rate.toFixed(1)),
+  const opS = r.ops.filter(o => o.rate != null && o.hours >= 1).slice(0,30);
+  mk('cOps', { type:'bar', data:{ labels: opS.map(o => o.op), datasets:[{ label:'Puntos/h', data: opS.map(o => +o.rate.toFixed(1)),
       backgroundColor: opS.map(o => o.status==='good' ? C.good : o.status==='warn' ? C.warn : o.status==='bad' ? C.bad : C.other), borderRadius:3 }] },
-    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt1(c.parsed.x)} SSCC/h · ${fmt(opS[c.dataIndex].n)} SSCC en ${opS[c.dataIndex].hours} h` } } },
-      scales:{ x:{grid, beginAtZero:true, suggestedMax: r.target || undefined, title:{display:true, text:'SSCC por hora activa'}}, y:{grid:noGrid, ticks:{autoSkip:false}} } } });
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt1(c.parsed.x)} puntos/h · ${fmt(opS[c.dataIndex].pts)} puntos en ${fmt1(opS[c.dataIndex].hours)} h de jornada` } } },
+      scales:{ x:{grid, beginAtZero:true, suggestedMax: r.target ? r.target*1.1 : undefined, title:{display:true, text:'Puntos por hora de jornada'}}, y:{grid:noGrid, ticks:{autoSkip:false}} } } });
 }
 
 /* ---------- Interfaz ---------- */
@@ -750,9 +758,9 @@ $('exportXlsx').addEventListener('click', () => {
   const r = state.last; if (!r || !window.XLSX){ toast('No se pudo cargar la librería de Excel.'); return; }
   const wb = XLSX.utils.book_new();
   const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:'Sin datos'}]), name);
-  add('Operarios', r.ops.map(o => ({Operario:o.op, 'Turno habitual':o.turno, Recepciones:o.R, Zonajes:o.Z, Cargas:o.C, 'Horas activas':o.hours, 'SSCC/h':o.rate!=null ? +o.rate.toFixed(2) : '', 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', Estado:LABEL[o.status]})));
-  add('Turnos', r.turnos.map(t => ({Turno:t.name, 'SSCC/día':Math.round(t.ssccDay), 'Operarios/día':+t.have.toFixed(1), 'Horas-operario/día':+t.opHours.toFixed(1), 'SSCC/h':t.rate!=null ? +t.rate.toFixed(2) : '', 'Plantilla necesaria':t.needInt ?? ''})));
-  add('Carga por hora', r.hours.map(h => ({Hora:pad(h.h)+':00', 'SSCC/día FR':+h.FR.toFixed(1), 'SSCC/día SU':+h.SU.toFixed(1), 'SSCC/día otras':+h.Otras.toFixed(1), 'Operarios presentes':+h.present.toFixed(1), 'Operarios necesarios':+h.need.toFixed(1), 'Mediana en muelle h (por hora de recepción)':r.dwHour[h.h]!=null ? +(r.dwHour[h.h]/60).toFixed(1) : ''})));
+  add('Operarios', r.ops.map(o => ({Operario:o.op, 'Turno habitual':o.turno, Recepciones:o.R, Zonajes:o.Z, Cargas:o.C, Jornadas:o.jornadas, 'Horas jornada':+o.hours.toFixed(2), Puntos:o.pts, 'Puntos/h':o.rate!=null ? +o.rate.toFixed(2) : '', 'Mov/h':o.movH!=null ? +o.movH.toFixed(2) : '', 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', Estado:LABEL[o.status]})));
+  add('Turnos', r.turnos.map(t => ({Turno:t.name, 'Puntos/día':Math.round(t.ssccDay), 'Operarios/día':+t.have.toFixed(1), 'Horas-operario/día':+t.opHours.toFixed(1), 'Puntos/h':t.rate!=null ? +t.rate.toFixed(2) : '', 'Plantilla necesaria':t.needInt ?? ''})));
+  add('Carga por hora', r.hours.map(h => ({Hora:pad(h.h)+':00', 'Puntos/día FR':+h.FR.toFixed(1), 'Puntos/día SU':+h.SU.toFixed(1), 'Puntos/día otras':+h.Otras.toFixed(1), 'Operarios presentes':+h.present.toFixed(1), 'Operarios necesarios':+h.need.toFixed(1), 'Mediana en muelle h (por hora de recepción)':r.dwHour[h.h]!=null ? +(r.dwHour[h.h]/60).toFixed(1) : ''})));
   add('Tiempo en muelle', r.dwByTipo.map(t => ({'Tipo Bord':t.k, Descripción:state.tipoDesc[t.k]||'', SSCC:t.n, 'Mediana h':t.med!=null ? +(t.med/60).toFixed(1) : '', 'P90 h':t.p90!=null ? +(t.p90/60).toFixed(1) : '', 'En objetivo %':t.inSla!=null ? Math.round(t.inSla*100) : '', 'Sin cargar':t.pend})));
   add('Agencias', r.ags.map(a => ({Agencia:a.ag, Viajes:a.n, 'Salida puntual %':a.puntSal!=null ? Math.round(a.puntSal*100) : '', 'Llegada puntual %':a.puntLle!=null ? Math.round(a.puntLle*100) : '', 'Retraso medio min':a.avg!=null ? Math.round(a.avg) : '', 'Peor retraso min':a.max!=null ? Math.round(a.max) : ''})));
   add('Alertas', (state.alerts||[]).map(a => ({Nivel:a.s, Alerta:a.t})));
@@ -768,11 +776,11 @@ $('themeBtn').addEventListener('click', () => {
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderCharts(state.last));
 
-const PARAMS = ['pTarget','pShift','pHours','pSla','pTol'];
-try { const saved = JSON.parse(store.get('to-params-v3') || 'null'); if (saved) PARAMS.forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
-PARAMS.forEach(id => $(id).addEventListener('change', () => { store.set('to-params-v3', JSON.stringify(Object.fromEntries(PARAMS.map(k => [k, $(k).value])))); render(); }));
+const PARAMS = ['pTarget','pShift','pJorn','pHours','pSla','pTol'];
+try { const saved = JSON.parse(store.get('to-params-v4') || 'null'); if (saved) PARAMS.forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
+PARAMS.forEach(id => $(id).addEventListener('change', () => { store.set('to-params-v4', JSON.stringify(Object.fromEntries(PARAMS.map(k => [k, $(k).value])))); render(); }));
 ['fFrom','fTo','fAct','fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).addEventListener('change', render));
-$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); $('fAct').value = 'CZ'; if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
+$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); $('fAct').value = 'RCZ'; if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
 
 function useData(d, label){
   setShiftStart(readParams().shift);
