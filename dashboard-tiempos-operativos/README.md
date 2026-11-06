@@ -21,8 +21,8 @@ Un único archivo `index.html` (sin carpetas `css/` ni `js/`) para analizar `Tie
 
 ## Cómo se calcula
 
-- **Actividades de BD_MOV_IQ**: recepción (`Fecha de recepción` + `Num. Recep.`), zonaje (`Fecha Zonaje` + `El que reparte en zonas`) y carga (`Fecha Carga Etiq` + `Operador`). Cada línea cuenta como un SSCC.
-- **Puntos por SSCC** (tabla H_OPERATIVAS del Canvas ETT vs PRO): recepción 1; zonaje y carga 2 en FR/NR y 4 en SU.
+- **Actividades de BD_MOV_IQ**: recepción, zonaje, precarga y carga (ver formatos admitidos). Cada línea cuenta como un SSCC.
+- **Puntos por SSCC** (tabla H_OPERATIVAS del Canvas ETT vs PRO): recepción 1; zonaje y carga 2 en FR/NR y 4 en SU; precarga 0,5 en FR/NR y 1 en SU.
 - **Horas de jornada** de un operario: del primer al último escaneo del día (cualquier actividad), con un máximo de 8 h. Es el mismo criterio que la columna HORAS_OP del Canvas.
 - **Puntos/hora** = puntos ÷ horas de jornada.
 - **Operarios necesarios por hora** = puntos medios de esa hora ÷ objetivo puntos/h.

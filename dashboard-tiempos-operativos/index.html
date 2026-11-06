@@ -160,7 +160,7 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
   <div class="frow">
     <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
     <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
-    <div class="field"><label for="fAct">Actividad</label><select id="fAct"><option value="RCZ">Todas</option><option value="CZ">Carga + zonaje</option><option value="C">Carga</option><option value="Z">Zonaje</option><option value="R">Recepción</option></select></div>
+    <div class="field"><label for="fAct">Actividad</label><select id="fAct"><option value="RZPC">Todas</option><option value="ZPC">Zonaje + precarga + carga</option><option value="C">Carga</option><option value="P">Precarga</option><option value="Z">Zonaje</option><option value="R">Recepción</option></select></div>
     <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option></select></div>
     <div class="field"><label for="fOp">Operario</label><select id="fOp"><option value="">Todos</option></select></div>
     <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
@@ -179,7 +179,7 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
       <div class="field"><label for="pTol">Tolerancia puntualidad (min)</label><input type="number" id="pTol" min="0" value="15"></div>
     </div>
     <p class="hint">Objetivo de la delegación: 60 puntos/hora por operario. Si lo dejas vacío, se usa la mediana del equipo. Horas de jornada = del primer al último escaneo del operario en el día (cualquier actividad), con el máximo indicado. Tres turnos de 8 h desde la hora de inicio (por defecto 00–08, 08–16, 16–24). Tiempo en muelle = de la fecha de recepción a la fecha de carga de la etiqueta.</p>
-    <div class="table-wrap"><table id="tPts"><thead><tr><th>Puntos por SSCC</th><th class="n">FR</th><th class="n">SU</th><th class="n">NR / otras</th></tr></thead><tbody><tr><td>Recepción</td><td class="n">1</td><td class="n">1</td><td class="n">1</td></tr><tr><td>Zonaje</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr><tr><td>Carga</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr></tbody></table></div>
+    <div class="table-wrap"><table id="tPts"><thead><tr><th>Puntos por SSCC</th><th class="n">FR</th><th class="n">SU</th><th class="n">NR / otras</th></tr></thead><tbody><tr><td>Recepción</td><td class="n">1</td><td class="n">1</td><td class="n">1</td></tr><tr><td>Zonaje</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr><tr><td>Precarga</td><td class="n">0,5</td><td class="n">1</td><td class="n">0,5</td></tr><tr><td>Carga</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr></tbody></table></div>
   </details>
 </div>
 
@@ -276,11 +276,11 @@ footer{color:var(--muted);font-size:12px;padding-block:0 32px}
     </article>
     <article class="panel">
       <div class="ptitle"><h3>Eficiencia por operario</h3><button class="btn small" type="button" data-copy="tOps">Copiar tabla</button></div>
-      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Turno habitual</th><th class="n">Recepciones</th><th class="n">Zonajes</th><th class="n">Cargas</th><th class="n">Jornadas</th><th class="n">Horas</th><th class="n">Puntos</th><th class="n">Pts/h</th><th class="n">Mov/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Turno habitual</th><th class="n">Recepciones</th><th class="n">Zonajes</th><th class="n">Precargas</th><th class="n">Cargas</th><th class="n">Jornadas</th><th class="n">Horas</th><th class="n">Puntos</th><th class="n">Pts/h</th><th class="n">Mov/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
     </article>
   </section>
 </main>
-<footer class="wrap">Hojas leídas: BD_LLE_NAC (F.VIAJE, HR_SAL_PLAN, HR_SAL_REAL, AGENCIA EXPEDIDORA, HR_LLE_NEGOCIADA, HR_LLE_PLAN, HR_LLE_REAL) y BD_MOV_IQ (Cat Temp, Fecha de recepción, Num. Recep., Fecha Zonaje, El que reparte en zonas, Fecha Carga Etiq, Operador, Estado Etiqueta, Tipo Bord, Num Paquete Pos.). Opcional: BD_VIAJES para describir los tipos de bordereau. Las fechas sin año (31/03 21:00) toman el año de BD_MOV_IQ.</footer>
+<footer class="wrap">Hojas leídas: BD_LLE_NAC (F.VIAJE, HR_SAL_PLAN, HR_SAL_REAL, AGENCIA EXPEDIDORA, HR_LLE_NEGOCIADA, HR_LLE_PLAN, HR_LLE_REAL) y BD_MOV_IQ (Cat Temp, Fecha de recepción, Num. Recep., Fecha Zonaje, El que reparte en zonas, Fecha Carga Etiq, Operador, Estado Etiqueta, Tipo Bord, Num Paquete Pos.). También lee el formato H_BBDD (FECHA_RECEPCION, OPERARIO RECEPCION, FECHA_ ZONAGE, OPERARIO ZONAGE, FECHA PRE CARGA, OPERARIO PRE CARGA, FECHA_CARGA, OPERARIO CARGA, CATEG_TEMPER, STATUS). Opcional: BD_VIAJES para describir los tipos de bordereau. Las fechas sin año (31/03 21:00) toman el año de BD_MOV_IQ.</footer>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -313,16 +313,17 @@ const TRIP_COLS = {
   lleNeg:['hrllenegociada','horallegadanegociada'], llePlan:['hrlleplan','horallegadaplan'], lleReal:['hrllereal','horallegadareal']
 };
 const MOV_COLS = {
-  temp:['cattemp','categoriatemp','cattemperatura','temperatura'],
-  recep:['fechaderecepcion','fecharecepcion'], zonaje:['fechazonaje','fechadezonaje'], carga:['fechacargaetiq','fechacarga','fechadecarga'],
-  opR:['numrecep','operadorrecepcion','receptor'], opZ:['elquereparteenzonas','elquerepartenzonas','operadorzonaje'], opC:['operador','operario'],
-  estado:['estadoetiqueta','estado'], tipo:['tipobord'], paq:['numpaquetepos','numpaquetes','paquetes'], pal:['numtotpalpos','numpallets']
+  temp:['cattemp','categtemper','categoriatemp','cattemperatura','temperatura'],
+  recep:['fechaderecepcion','fecharecepcion'], zonaje:['fechazonaje','fechazonage','fechadezonaje'], precarga:['fechaprecarga','fechadeprecarga'], carga:['fechacargaetiq','fechacarga','fechadecarga'],
+  opR:['operariorecepcion','numrecep','operadorrecepcion','receptor'], opZ:['operariozonage','operariozonaje','elquereparteenzonas','elquerepartenzonas','operadorzonaje'],
+  opP:['operarioprecarga','operadorprecarga'], opC:['operariocarga','operadorcarga','operador','operario'],
+  estado:['estadoetiqueta','status','estado'], tipo:['tipobord'], paq:['numpaquetepos','numpaquetes','paquetes'], pal:['numtotpalpos','numpallets']
 };
 function buildMap(headers, spec){
   const nh = headers.map(h => [h, norm(h)]); const map = {};
   for (const [field, aliases] of Object.entries(spec)){
     for (const a of aliases){ const hit = nh.find(([,n]) => n === a); if (hit){ map[field] = hit[0]; break; } }
-    if (!map[field]) for (const a of aliases){ if (a.length < 6) continue; const hit = nh.find(([,n]) => n.startsWith(a)); if (hit){ map[field] = hit[0]; break; } }
+    if (!map[field]) for (const a of aliases){ if (a.length < 6 || a === 'operario' || a === 'operador') continue; const hit = nh.find(([,n]) => n.startsWith(a)); if (hit){ map[field] = hit[0]; break; } }
   }
   return map;
 }
@@ -332,6 +333,7 @@ const num = v => { if (v==null||v==='') return 0; const n = Number(String(v).rep
 
 /* Fechas en milisegundos "naive" (UTC) para evitar desfases horarios. Las fechas sin año usan REF_YEAR. */
 let REF_YEAR = new Date().getFullYear();
+const MONTHS = {jan:0,ene:0,feb:1,mar:2,apr:3,abr:3,may:4,jun:5,jul:6,aug:7,ago:7,sep:8,set:8,oct:9,nov:10,dec:11,dic:11};
 function parseDT(v, baseMs){
   if (v==null || v==='') return null;
   if (v instanceof Date) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds());
@@ -343,6 +345,8 @@ function parseDT(v, baseMs){
   const s = String(v).trim(); let m;
   if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/))) return Date.UTC(+m[1], m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0));
   if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); }
+  if ((m = s.match(/^(\d{1,2})[ \-]([A-Za-zé]{3,4})[a-zé]*\.?[ \-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){
+    const mo = MONTHS[norm(m[2]).slice(0,3)]; if (mo != null){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, mo, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); } }
   if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/))) return Date.UTC(REF_YEAR, m[2]-1, +m[1], +(m[3]||0), +(m[4]||0), +(m[5]||0));
   if ((m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/))) return baseMs==null ? null : baseMs + (+m[1]*60 + +m[2])*60000;
   const n = Number(s.replace(',','.')); if (s && isFinite(n)) return parseDT(n, baseMs);
@@ -360,8 +364,8 @@ const shiftIdx = h => Math.floor(((h - SHIFT_START + 24)%24)/8);
 const turnoOf = h => TURNOS[shiftIdx(h)][0];
 function normTemp(v){ const s = clean(v).toUpperCase(); if (!s) return 'Sin categoría'; if (s.startsWith('FR')) return 'FR'; if (s.startsWith('SU')) return 'SU'; return s; }
 const tempKey = t => t==='FR' ? 'FR' : t==='SU' ? 'SU' : 'Otras';
-const KIND = {R:'Recepción', Z:'Zonaje', C:'Carga'};
-const POINTS = {R:{FR:1, SU:1, Otras:1}, Z:{FR:2, SU:4, Otras:2}, C:{FR:2, SU:4, Otras:2}};
+const KIND = {R:'Recepción', Z:'Zonaje', P:'Precarga', C:'Carga'};
+const POINTS = {R:{FR:1, SU:1, Otras:1}, Z:{FR:2, SU:4, Otras:2}, P:{FR:0.5, SU:1, Otras:0.5}, C:{FR:2, SU:4, Otras:2}};
 
 function buildTrips(rows, map){
   const out = [];
@@ -382,9 +386,9 @@ function buildRows(raw, map){
   const legacy = !map.carga && map.zonaje && !map.opZ && map.opC;
   const out = [];
   for (const r of raw){
-    const rc = parseDT(r[map.recep]), zn = parseDT(r[map.zonaje]), cg = legacy ? null : parseDT(r[map.carga]);
-    if (rc==null && zn==null && cg==null) continue;
-    out.push({ rc, zn, cg, temp: normTemp(r[map.temp]), estado: clean(r[map.estado]) || 'Sin estado', tipo: clean(r[map.tipo]) || '—',
+    const rc = parseDT(r[map.recep]), zn = parseDT(r[map.zonaje]), cg = legacy ? null : parseDT(r[map.carga]), pc = parseDT(r[map.precarga]);
+    if (rc==null && zn==null && cg==null && pc==null) continue;
+    out.push({ rc, zn, cg, pc, opP: person(r[map.opP]), temp: normTemp(r[map.temp]), estado: clean(r[map.estado]) || 'Sin estado', tipo: clean(r[map.tipo]) || '—',
       opR: person(r[map.opR]), opZ: person(r[legacy ? map.opC : map.opZ]), opC: legacy ? '' : person(r[map.opC]), paq: num(r[map.paq]), pal: num(r[map.pal]) });
   }
   return out;
@@ -395,7 +399,7 @@ function finishRows(rows){
     r.dwC = (r.rc!=null && r.cg!=null) ? (r.cg - r.rc)/60000 : null; if (r.dwC!=null && (r.dwC < 0 || r.dwC > 43200)) r.dwC = null;
     r.dwZ = (r.rc!=null && r.zn!=null) ? (r.zn - r.rc)/60000 : null; if (r.dwZ!=null && (r.dwZ < 0 || r.dwZ > 43200)) r.dwZ = null;
     const ref = r.rc ?? r.zn ?? r.cg; r.day = Math.floor(ref/DAY); r.rh = new Date(ref).getUTCHours();
-    for (const [k, ms, op] of [['R', r.rc, r.opR], ['Z', r.zn, r.opZ], ['C', r.cg, r.opC]]){
+    for (const [k, ms, op] of [['R', r.rc, r.opR], ['Z', r.zn, r.opZ], ['P', r.pc, r.opP], ['C', r.cg, r.opC]]){
       if (ms==null || !op) continue; if (ms > end) end = ms;
       const hour = new Date(ms).getUTCHours();
       events.push({ k, op, ms, day: Math.floor(ms/DAY), hour, turno: turnoOf(hour), temp: r.temp, estado: r.estado, pts: POINTS[k][tempKey(r.temp)] });
@@ -407,7 +411,7 @@ function finishRows(rows){
 }
 
 /* ---------- Lectura del Excel ---------- */
-function headersOf(ws){ const rows = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:false, range:0}); return (rows[0]||[]).map(clean); }
+function headersOf(ws){ const rows = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:false, range:0}); return Array.from(rows[0]||[], clean); }
 function pickSheet(wb, key, spec, required){
   let name = wb.SheetNames.find(n => norm(n).includes(key));
   if (!name) name = wb.SheetNames.find(n => { const m = buildMap(headersOf(wb.Sheets[n]), spec); return required.every(r => m[r]); });
@@ -440,14 +444,14 @@ function loadWorkbook(buf, fileName){
 function toCompact(){
   const dict = {}; const idx = (name, v) => { const d = dict[name] || (dict[name] = {list:[], map:new Map()}); if (!d.map.has(v)){ d.map.set(v, d.list.length); d.list.push(v); } return d.map.get(v); };
   const mi = ms => ms==null ? null : Math.round(ms/60000);
-  const rows = state.rows.map(r => [mi(r.rc), mi(r.zn), mi(r.cg), idx('t', r.temp), idx('e', r.estado), idx('b', r.tipo), idx('o', r.opR), idx('o', r.opZ), idx('o', r.opC), r.paq]);
+  const rows = state.rows.map(r => [mi(r.rc), mi(r.zn), mi(r.cg), idx('t', r.temp), idx('e', r.estado), idx('b', r.tipo), idx('o', r.opR), idx('o', r.opZ), idx('o', r.opC), r.paq, mi(r.pc), idx('o', r.opP || '')]);
   const trips = state.trips.map(t => [t.day, idx('a', t.agencia), t.salDelay==null ? null : Math.round(t.salDelay), t.lleDelay==null ? null : Math.round(t.lleDelay)]);
   const D = {}; for (const k in dict) D[k] = dict[k].list;
   return { v:1, file: state.fileName, dict: D, rows, trips, tipoDesc: state.tipoDesc };
 }
 function fromCompact(o){
   const D = o.dict, ms = m => m==null ? null : m*60000;
-  const rows = o.rows.map(a => ({ rc: ms(a[0]), zn: ms(a[1]), cg: ms(a[2]), temp: D.t[a[3]], estado: D.e[a[4]], tipo: D.b[a[5]], opR: D.o[a[6]], opZ: D.o[a[7]], opC: D.o[a[8]], paq: a[9], pal: 0 }));
+  const rows = o.rows.map(a => ({ rc: ms(a[0]), zn: ms(a[1]), cg: ms(a[2]), temp: D.t[a[3]], estado: D.e[a[4]], tipo: D.b[a[5]], opR: D.o[a[6]], opZ: D.o[a[7]], opC: D.o[a[8]], paq: a[9], pal: 0, pc: a[10]!=null ? ms(a[10]) : null, opP: a[11]!=null ? D.o[a[11]] : '' }));
   const trips = o.trips.map(a => ({ day: a[0], agencia: D.a[a[1]], salDelay: a[2], lleDelay: a[3] }));
   return { rows, trips, tipoDesc: o.tipoDesc || {} };
 }
@@ -510,7 +514,7 @@ function setupFilters(){
 }
 const dayOfInput = v => v ? Math.floor(Date.parse(v + 'T00:00:00Z')/DAY) : null;
 function readFilters(){
-  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, act: $('fAct').value || 'RCZ',
+  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, act: $('fAct').value || 'RZPC',
     turno: $('fTurno').value, op: $('fOp').value, temp: $('fTemp').value, estado: $('fEstado').value, ag: $('fAg').value };
 }
 function readParams(){
@@ -538,11 +542,11 @@ function compute(){
   const rows = state.rows.filter(r => r.day >= f.from && r.day <= f.to && (!f.temp || r.temp===f.temp) && (!f.estado || r.estado===f.estado));
   const trips = state.trips.filter(t => t.day >= f.from && t.day <= f.to && (!f.ag || t.agencia===f.ag));
   const nDays = new Set(work.map(e => e.day)).size || 1;
-  const kCount = {R:0, Z:0, C:0}; let totPts = 0; for (const e of work){ kCount[e.k]++; totPts += e.pts; }
+  const kCount = {R:0, Z:0, P:0, C:0}; let totPts = 0; for (const e of work){ kCount[e.k]++; totPts += e.pts; }
   const jHours = (op, day) => { const j = state.jornada.get(op + '|' + day); return j ? Math.min((j[1] - j[0])/3600e3, p.jorn) : 0; };
 
   // Operarios
-  const opMap = new Map(); const get = op => { let o = opMap.get(op); if (!o){ o = {op, n:0, pts:0, R:0, Z:0, C:0, days:new Set(), turnos:{}}; opMap.set(op, o); } return o; };
+  const opMap = new Map(); const get = op => { let o = opMap.get(op); if (!o){ o = {op, n:0, pts:0, R:0, Z:0, P:0, C:0, days:new Set(), turnos:{}}; opMap.set(op, o); } return o; };
   for (const e of evAll) get(e.op)[e.k]++;
   for (const e of work){ const o = get(e.op); o.n++; o.pts += e.pts; o.days.add(e.day); o.turnos[e.turno] = (o.turnos[e.turno]||0) + 1; }
   const ops = [...opMap.values()].map(o => { const hours = [...o.days].reduce((s,d) => s + jHours(o.op, d), 0);
@@ -670,7 +674,7 @@ function render(){
   $('tAg').tBodies[0].innerHTML = r.ags.map(a => `<tr><td>${esc(a.ag)}</td><td class="n">${fmt(a.n)}</td><td class="n">${pct(a.puntSal)}</td><td class="n">${pct(a.puntLle)}</td><td class="n">${minLabel(a.avg)}</td><td class="n">${minLabel(a.max)}</td><td><span class="chip ${a.status}">${LABEL[a.status]}</span></td></tr>`).join('') || '<tr><td colspan="7">Sin viajes en el rango</td></tr>';
 
   $('opSub').textContent = (r.target ? `Objetivo ${fmt(r.target)} puntos/h · verde ≥ objetivo · ámbar ≥ 85% · rojo < 85%` : '') + ` · ${actLabel(r)}`;
-  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.R)}</td><td class="n">${fmt(o.Z)}</td><td class="n">${fmt(o.C)}</td><td class="n">${fmt(o.jornadas)}</td><td class="n">${fmt1(o.hours)}</td><td class="n">${fmt(o.pts)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${fmt1(o.movH)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="12">Sin actividad</td></tr>';
+  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.R)}</td><td class="n">${fmt(o.Z)}</td><td class="n">${fmt(o.P)}</td><td class="n">${fmt(o.C)}</td><td class="n">${fmt(o.jornadas)}</td><td class="n">${fmt1(o.hours)}</td><td class="n">${fmt(o.pts)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${fmt1(o.movH)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="13">Sin actividad</td></tr>';
 
   renderCharts(r);
 }
@@ -758,7 +762,7 @@ $('exportXlsx').addEventListener('click', () => {
   const r = state.last; if (!r || !window.XLSX){ toast('No se pudo cargar la librería de Excel.'); return; }
   const wb = XLSX.utils.book_new();
   const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:'Sin datos'}]), name);
-  add('Operarios', r.ops.map(o => ({Operario:o.op, 'Turno habitual':o.turno, Recepciones:o.R, Zonajes:o.Z, Cargas:o.C, Jornadas:o.jornadas, 'Horas jornada':+o.hours.toFixed(2), Puntos:o.pts, 'Puntos/h':o.rate!=null ? +o.rate.toFixed(2) : '', 'Mov/h':o.movH!=null ? +o.movH.toFixed(2) : '', 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', Estado:LABEL[o.status]})));
+  add('Operarios', r.ops.map(o => ({Operario:o.op, 'Turno habitual':o.turno, Recepciones:o.R, Zonajes:o.Z, Precargas:o.P, Cargas:o.C, Jornadas:o.jornadas, 'Horas jornada':+o.hours.toFixed(2), Puntos:o.pts, 'Puntos/h':o.rate!=null ? +o.rate.toFixed(2) : '', 'Mov/h':o.movH!=null ? +o.movH.toFixed(2) : '', 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', Estado:LABEL[o.status]})));
   add('Turnos', r.turnos.map(t => ({Turno:t.name, 'Puntos/día':Math.round(t.ssccDay), 'Operarios/día':+t.have.toFixed(1), 'Horas-operario/día':+t.opHours.toFixed(1), 'Puntos/h':t.rate!=null ? +t.rate.toFixed(2) : '', 'Plantilla necesaria':t.needInt ?? ''})));
   add('Carga por hora', r.hours.map(h => ({Hora:pad(h.h)+':00', 'Puntos/día FR':+h.FR.toFixed(1), 'Puntos/día SU':+h.SU.toFixed(1), 'Puntos/día otras':+h.Otras.toFixed(1), 'Operarios presentes':+h.present.toFixed(1), 'Operarios necesarios':+h.need.toFixed(1), 'Mediana en muelle h (por hora de recepción)':r.dwHour[h.h]!=null ? +(r.dwHour[h.h]/60).toFixed(1) : ''})));
   add('Tiempo en muelle', r.dwByTipo.map(t => ({'Tipo Bord':t.k, Descripción:state.tipoDesc[t.k]||'', SSCC:t.n, 'Mediana h':t.med!=null ? +(t.med/60).toFixed(1) : '', 'P90 h':t.p90!=null ? +(t.p90/60).toFixed(1) : '', 'En objetivo %':t.inSla!=null ? Math.round(t.inSla*100) : '', 'Sin cargar':t.pend})));
@@ -780,7 +784,7 @@ const PARAMS = ['pTarget','pShift','pJorn','pHours','pSla','pTol'];
 try { const saved = JSON.parse(store.get('to-params-v4') || 'null'); if (saved) PARAMS.forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
 PARAMS.forEach(id => $(id).addEventListener('change', () => { store.set('to-params-v4', JSON.stringify(Object.fromEntries(PARAMS.map(k => [k, $(k).value])))); render(); }));
 ['fFrom','fTo','fAct','fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).addEventListener('change', render));
-$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); $('fAct').value = 'RCZ'; if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
+$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); $('fAct').value = 'RZPC'; if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
 
 function useData(d, label){
   setShiftStart(readParams().shift);
