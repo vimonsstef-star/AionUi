@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PRO vs ETT Valencia</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<style>
+/* Layout: cabecera de muelle + barra de filtros + bloques apilados (resumen → plantilla → zonaje → viajes → operadores) */
+:root{
+  --bg:#eef2f4; --surface:#ffffff; --sunk:#f5f8f9; --ink:#14212b; --muted:#566874; --line:#d6dee3;
+  --accent:#0a6a85; --accent-ink:#ffffff;
+  --fr:#16907d; --su:#2f53a8; --other:#8d9aa4; --pro:#0a6a85; --ett:#8a4fbf;
+  --good:#2a7f3e; --warn:#b86e00; --bad:#bf3a30;
+  --good-bg:#e3f2e7; --warn-bg:#fbefd9; --bad-bg:#f9e2df; --info-bg:#e1eff4;
+  --font-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-data:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88; --pro:#4cb0cc; --ett:#b98ae8;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88; --pro:#4cb0cc; --ett:#b98ae8;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1360px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:.01em}
+.num,td.n,th.n{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+button,.btn,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;padding-block:20px 16px}
+.eyebrow{font-family:var(--font-data);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top h1{font-size:clamp(30px,5vw,42px);font-weight:700;line-height:1}
+.dock-strip{display:inline-flex;gap:3px;margin-left:10px;vertical-align:middle}
+.dock-strip i{width:7px;height:22px;background:var(--accent);opacity:.25;display:block}
+.dock-strip i:nth-child(2){opacity:.45}.dock-strip i:nth-child(3){opacity:.7}.dock-strip i:nth-child(4){opacity:1}
+.source{color:var(--muted);font-size:13px;margin-top:6px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:5px 10px;font-size:13px}
+#excelFile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.banner{background:var(--info-bg);border-bottom:1px solid var(--line);font-size:14px}
+.banner .wrap{padding-block:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banner b{font-family:var(--font-data);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink);padding:2px 7px;border-radius:3px}
+.banner.error{background:var(--bad-bg)}
+
+/* Filtros */
+.filters{padding-block:16px 4px;display:grid;gap:10px}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field input,.field select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+details.params{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+details.params summary{cursor:pointer;font-weight:600;font-size:14px}
+details.params .frow{margin-top:10px}
+.hint{font-size:12px;color:var(--muted)}
+
+/* Navegación de secciones */
+.secnav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.secnav .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+.secnav a{white-space:nowrap;text-decoration:none;color:var(--ink);font-size:14px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:var(--surface)}
+.secnav a:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Secciones */
+main{display:grid;gap:28px;padding-block:20px 48px}
+section{display:grid;gap:14px;scroll-margin-top:60px}
+.sechead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.sechead h2{font-size:26px;font-weight:700;text-transform:uppercase}
+.sechead p{margin:0;color:var(--muted);font-size:14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
+.g32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+@media (max-width:900px){.g32{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ptitle{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;align-items:baseline}
+.ptitle h3{font-size:19px;font-weight:600}
+.ptitle span{font-size:12px;color:var(--muted)}
+.chart-box{position:relative;height:290px;width:100%}
+.chart-box.tall{height:360px}
+.nochart{display:grid;place-items:center;height:100%;color:var(--muted);font-size:14px;text-align:center}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.kpi[data-s="good"]::after{background:var(--good)}.kpi[data-s="warn"]::after{background:var(--warn)}.kpi[data-s="bad"]::after{background:var(--bad)}
+.kpi span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi strong{font-family:var(--font-display);font-size:34px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+
+/* Alertas */
+.alerts{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:330px;overflow-y:auto}
+.alerts li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:6px;background:var(--sunk);font-size:14px}
+.chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:12px;white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good)}.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.info{background:var(--info-bg);color:var(--accent)}
+.chip.mute{background:var(--sunk);color:var(--muted)}
+
+/* Tablas */
+.table-wrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.n,td.n{text-align:right}
+tbody tr:hover td{background:var(--sunk)}
+.scroll-y{max-height:420px;overflow:auto}
+.tempdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Mapa de calor */
+.heat td{padding:0;border:1px solid var(--surface);text-align:center;font-family:var(--font-data);font-size:11px;min-width:30px;height:26px}
+.heat td.lbl{padding:0 8px;text-align:left;font-family:var(--font-body);font-size:13px;background:var(--surface);position:sticky;left:0;z-index:1}
+.heat th{text-align:center;padding:4px 2px;font-family:var(--font-data)}
+.heat th:first-child{position:sticky;left:0;z-index:2}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px);z-index:20}
+footer{color:var(--muted);font-size:12px;padding-block:0 32px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:560px){.kpi strong{font-size:28px}.chart-box{height:250px}.sechead h2{font-size:22px}}
+
+/* PRO vs ETT */
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg button{flex:1;border:0;background:transparent;padding:7px 10px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.versus{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:14px;align-items:stretch}
+@media (max-width:760px){.versus{grid-template-columns:1fr}}
+.vs-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;border-top:5px solid var(--pro)}
+.vs-card[data-g="ETT"]{border-top-color:var(--ett)}
+.vs-head{display:flex;align-items:center;gap:8px}.vs-head h3{font-size:18px;font-weight:600}
+.gdot{width:10px;height:10px;border-radius:50%;display:inline-block}.gdot.pro{background:var(--pro)}.gdot.ett{background:var(--ett)}
+.vs-main{display:flex;align-items:baseline;gap:8px}
+.vs-main strong{font-family:var(--font-display);font-size:clamp(46px,7vw,64px);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.vs-main span{color:var(--muted);font-size:14px}
+.vs-card[data-s="good"] .vs-main strong{color:var(--good)}.vs-card[data-s="warn"] .vs-main strong{color:var(--warn)}.vs-card[data-s="bad"] .vs-main strong{color:var(--bad)}
+.vs-bar{position:relative;height:10px;background:var(--sunk);border-radius:5px;overflow:visible}
+.vs-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--pro);border-radius:5px}
+.vs-card[data-g="ETT"] .vs-bar i{background:var(--ett)}
+.vs-bar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--bad)}
+.vs-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+@media (max-width:460px){.vs-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.vs-facts dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.vs-facts dd{margin:0;font-family:var(--font-data);font-variant-numeric:tabular-nums;font-size:15px}
+.vs-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 6px;text-align:center;min-width:120px}
+.vs-mid span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.vs-mid strong{font-family:var(--font-display);font-size:34px;font-weight:700;font-variant-numeric:tabular-nums}
+.vs-mid em{font-style:normal;font-size:12px;color:var(--muted);max-width:160px}
+.share{display:grid;gap:12px}
+.share-row{display:grid;grid-template-columns:100px minmax(0,1fr) 48px;gap:4px 10px;align-items:center}
+.share-row span{font-weight:600;font-size:14px}.share-row b{font-family:var(--font-data);text-align:right}
+.share-row em{grid-column:2/4;font-style:normal;font-size:12px;color:var(--muted);font-family:var(--font-data)}
+.share-track{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--sunk)}
+.share-track i.pro{background:var(--pro);opacity:.35}.share-track i.ett{background:var(--ett)}
+.gtag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;padding:1px 7px;border-radius:3px;color:var(--bg)}
+.gtag.pro{background:var(--pro)}.gtag.ett{background:var(--ett)}
+tr.dim td{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Muelle · Delegación Valencia · Plantilla propia frente a ETT</div>
+      <h1>PRO vs ETT<span class="dock-strip" aria-hidden="true"><i></i><i></i><i></i><i></i></span></h1>
+      <div class="source" id="sourceLabel">Datos de ejemplo</div>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="excelFile">Cargar Excel</label>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,.xlsm">
+      <button class="btn" id="exportXlsx" type="button">Exportar informe Excel</button>
+      <button class="btn" id="themeBtn" type="button" aria-label="Cambiar tema claro u oscuro">Tema</button>
+    </div>
+  </div>
+</header>
+<div class="banner" id="banner"><div class="wrap"><b>Ejemplo</b><span id="bannerText">Estás viendo datos inventados. Pulsa <strong>Cargar Excel</strong> y elige el Canvas ETT vs PRO (hojas FACT y H_HORAS). El archivo se procesa en tu navegador.</span></div></div>
+
+<div class="wrap filters">
+  <div class="frow">
+    <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
+    <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
+    <div class="field"><label for="fOper">Operativa</label><select id="fOper"><option value="">Todas</option></select></div>
+    <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
+    <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option></select></div>
+    <div class="field"><label>Medir en</label>
+      <div class="seg" role="group" aria-label="Medir en">
+        <button type="button" id="mPts" aria-pressed="true">Puntos/h</button><button type="button" id="mMov" aria-pressed="false">Movimientos/h</button>
+      </div>
+    </div>
+    <div class="field"><button class="btn" id="resetFilters" type="button">Limpiar filtros</button></div>
+  </div>
+  <details class="params" id="paramsBox">
+    <summary>Parámetros y método de cálculo</summary>
+    <div class="frow">
+      <div class="field"><label for="pTargetPts">Objetivo puntos/hora</label><input type="number" id="pTargetPts" min="1" step="1" value="60"></div>
+      <div class="field"><label for="pTargetMov">Objetivo movimientos/hora</label><input type="number" id="pTargetMov" min="1" step="1" placeholder="Sin objetivo"></div>
+    </div>
+    <p class="hint"><strong>Por grupo:</strong> puntos (o movimientos) de los días con horas en H_HORAS ÷ horas de H_HORAS. Con filtros de operativa, temperatura o turno, las horas del grupo se reparten entre sus movimientos (columna HORAS_GRUPO). <strong>Por operario:</strong> puntos ÷ horas de jornada (primer a último escaneo del día, máximo 8 h; columna HORAS_OP). Los usuarios marcados como no individuales (INDIVIDUAL = NO) cuentan en su grupo pero no en el ranking.</p>
+    <div class="table-wrap"><table id="tPuntos"><thead><tr><th>Operativa</th><th class="n">FR</th><th class="n">SU</th><th class="n">NR</th></tr></thead><tbody></tbody></table></div>
+  </details>
+</div>
+
+<nav class="secnav" aria-label="Secciones"><div class="wrap">
+  <a href="#resumen">Resumen</a><a href="#dias">Por día</a><a href="#operativas">Operativas</a><a href="#turnos">Turnos</a><a href="#operarios">Operarios</a>
+</div></nav>
+
+<main class="wrap">
+  <section id="resumen">
+    <div class="sechead"><h2>Resumen</h2><p id="rangeLabel"></p></div>
+    <div class="versus">
+      <article class="vs-card" data-g="PRO">
+        <div class="vs-head"><span class="gdot pro"></span><h3>PRO · plantilla propia</h3></div>
+        <div class="vs-main"><strong id="vProMain">—</strong><span id="vProUnit">puntos/h</span></div>
+        <div class="vs-bar"><i id="vProBar"></i><b id="vProGoal"></b></div>
+        <dl class="vs-facts"><div><dt>Movimientos/h</dt><dd id="vProMov">—</dd></div><div><dt>Horas</dt><dd id="vProH">—</dd></div><div><dt>Puntos</dt><dd id="vProPts">—</dd></div><div><dt>Movimientos</dt><dd id="vProN">—</dd></div></dl>
+      </article>
+      <div class="vs-mid" id="vsMid"><span>diferencia</span><strong id="vDiff">—</strong><em id="vDiffSub"></em></div>
+      <article class="vs-card" data-g="ETT">
+        <div class="vs-head"><span class="gdot ett"></span><h3>ETT · trabajo temporal</h3></div>
+        <div class="vs-main"><strong id="vEttMain">—</strong><span id="vEttUnit">puntos/h</span></div>
+        <div class="vs-bar"><i id="vEttBar"></i><b id="vEttGoal"></b></div>
+        <dl class="vs-facts"><div><dt>Movimientos/h</dt><dd id="vEttMov">—</dd></div><div><dt>Horas</dt><dd id="vEttH">—</dd></div><div><dt>Puntos</dt><dd id="vEttPts">—</dd></div><div><dt>Movimientos</dt><dd id="vEttN">—</dd></div></dl>
+      </article>
+    </div>
+    <div class="grid g32">
+      <article class="panel">
+        <div class="ptitle"><h3>Peso de ETT en el muelle</h3><span>% sobre el total de cada concepto</span></div>
+        <div class="share" id="shareBars"></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Conclusiones</h3><span id="alertCount"></span></div>
+        <ul class="alerts" id="alerts"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="dias">
+    <div class="sechead"><h2>Por día</h2><p>Productividad y horas de cada grupo</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3 id="dayTitle">Puntos por hora</h3><span id="daySub"></span></div>
+        <div class="chart-box"><canvas id="cDay"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Horas por grupo</h3><span>H_HORAS · % ETT</span></div>
+        <div class="chart-box"><canvas id="cHours"></canvas></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="operativas">
+    <div class="sechead"><h2>Operativas</h2><p>Qué trabajo hace cada grupo y a qué ritmo</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Reparto de movimientos</h3><span>% de los movimientos de cada grupo</span></div>
+        <div class="chart-box" style="height:220px"><canvas id="cMix"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3 id="operTitle">Ritmo por operativa</h3><span>Por hora de operario (HORAS_OP repartidas)</span></div>
+        <div class="chart-box" style="height:220px"><canvas id="cOperRate"></canvas></div>
+      </article>
+    </div>
+    <article class="panel">
+      <div class="ptitle"><h3>Operativa × temperatura</h3><button class="btn small" type="button" data-copy="tOper">Copiar tabla</button></div>
+      <div class="table-wrap"><table id="tOper"><thead><tr><th>Operativa</th><th>Temp.</th><th class="n">Puntos/mov.</th><th class="n">Mov. PRO</th><th class="n">Mov. ETT</th><th class="n">% ETT</th><th class="n">Mov/h PRO</th><th class="n">Mov/h ETT</th><th>Más rápido</th></tr></thead><tbody></tbody></table></div>
+    </article>
+  </section>
+
+  <section id="turnos">
+    <div class="sechead"><h2>Turnos</h2><p>Dónde se concentra cada grupo</p></div>
+    <div class="grid g32">
+      <article class="panel">
+        <div class="ptitle"><h3>Movimientos por hora del día</h3><span>Media por día con actividad</span></div>
+        <div class="chart-box"><canvas id="cHour"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Por turno</h3><span>Horas de operario</span></div>
+        <div class="table-wrap"><table id="tTurno"><thead><tr><th>Turno</th><th>Grupo</th><th class="n">Mov.</th><th class="n">Horas</th><th class="n" id="thTurnoRate">Pts/h</th></tr></thead><tbody></tbody></table></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="operarios">
+    <div class="sechead"><h2>Operarios</h2><p>Ranking individual sobre horas de jornada</p></div>
+    <article class="panel">
+      <div class="ptitle"><h3 id="opTitle">Puntos por hora</h3><span id="opSub"></span></div>
+      <div class="chart-box tall"><canvas id="cOps"></canvas></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Detalle por operario</h3><button class="btn small" type="button" data-copy="tOps">Copiar tabla</button></div>
+      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Grupo</th><th class="n">Jornadas</th><th class="n">Horas</th><th class="n">Movimientos</th><th class="n">Puntos</th><th class="n">Pts/h</th><th class="n">Mov/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+      <p class="hint" id="excludedNote"></p>
+    </article>
+  </section>
+</main>
+<footer class="wrap">Hojas leídas: FACT (SSCC_PALET, OPERATIVA, CATEG_TEMPER, FECHA_HORA, TURNO, OPERARIO, GRUPO, JORNADA_ID, PUNTOS, MOVIMIENTOS, HORAS_OP, HORAS_GRUPO, EN_VENTANA, INDIVIDUAL), H_HORAS (horas PRO y ETT por día) y H_OPERATIVAS (puntos por operativa y temperatura).</footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const DAY = 864e5;
+const $ = id => document.getElementById(id);
+const NF = new Intl.NumberFormat('es-ES');
+const NF1 = new Intl.NumberFormat('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmt = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n));
+const fmt1 = n => (n==null||!isFinite(n)) ? '—' : NF1.format(n);
+const pct = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n*100)) + '%';
+const sgn = n => (n > 0 ? '+' : '') ;
+const pad = n => String(n).padStart(2,'0');
+const DOW = ['dom','lun','mar','mié','jue','vie','sáb'];
+const dayLabel = d => { const t = new Date(d*DAY); return DOW[t.getUTCDay()] + ' ' + pad(t.getUTCDate()) + '/' + pad(t.getUTCMonth()+1); };
+const isoDay = d => new Date(d*DAY).toISOString().slice(0,10);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+const norm = s => String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const clean = v => v==null ? '' : String(v).trim();
+const num = v => { if (v==null||v==='') return 0; if (typeof v === 'number') return v; const s = String(v).trim(); const n = Number(/,\d{1,3}$/.test(s) && !/\.\d/.test(s) ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'')); return isFinite(n) ? n : 0; };
+const OPER_ORDER = ['Recepcion','Zonaje','Precarga','Carga'];
+const OPER_LABEL = {Recepcion:'Recepción', Zonaje:'Zonaje', Precarga:'Precarga', Carga:'Carga'};
+const operLabel = o => OPER_LABEL[o] || o;
+
+const state = { ev: [], horas: new Map(), puntos: [], source:'sample', fileName:'', metric:'pts', charts:{}, last:null };
+
+function parseDT(v){
+  if (v==null || v==='') return null;
+  if (v instanceof Date) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds());
+  if (typeof v === 'number') return isFinite(v) && v > 1 ? Math.round((v - 25569) * 86400) * 1000 : null;
+  const s = String(v).trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/))) return Date.UTC(+m[1], m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); }
+  const n = Number(s.replace(',','.')); return s && isFinite(n) ? parseDT(n) : null;
+}
+
+/* ---------- Lectura del Excel ---------- */
+const FACT_COLS = { fecha:'fechahora', oper:'operativa', temp:'categtemper', turno:'turno', op:'operario', grupo:'grupo', pts:'puntos', mov:'movimientos', hOp:'horasop', hGr:'horasgrupo', vent:'enventana', ind:'individual' };
+function colMap(headers){ const m = {}; for (const [k, n] of Object.entries(FACT_COLS)){ const h = headers.find(x => norm(x) === n); if (h) m[k] = h; } return m; }
+function loadWorkbook(buf, fileName){
+  if (!window.XLSX) throw new Error('No se pudo cargar la librería de Excel. Revisa la conexión a Internet y recarga la página.');
+  const wb = XLSX.read(buf, {type:'array'});
+  const sheet = name => wb.SheetNames.find(n => norm(n) === name);
+  const fName = sheet('fact'), hName = sheet('hhoras'), pName = sheet('hoperativas');
+  if (!fName) throw new Error(`No encuentro la hoja FACT en ${fileName}. Este dashboard necesita el Canvas ETT vs PRO con la hoja FACT ya generada.`);
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[fName], {defval:null, raw:true});
+  const map = colMap(Object.keys(rows[0] || {}));
+  const miss = ['fecha','oper','op','grupo','pts'].filter(k => !map[k]);
+  if (miss.length) throw new Error('A la hoja FACT le faltan columnas: ' + miss.map(k => FACT_COLS[k]).join(', ') + '.');
+  const ev = [];
+  for (const r of rows){
+    const ms = parseDT(r[map.fecha]); const op = clean(r[map.op]); if (ms==null || !op || !clean(r[map.oper])) continue;
+    ev.push({ ms, op, g: clean(r[map.grupo]).toUpperCase() || 'SIN GRUPO', oper: clean(r[map.oper]), temp: clean(r[map.temp]).toUpperCase() || '—', turno: clean(r[map.turno]) || '—',
+      pts: num(r[map.pts]), mov: map.mov ? num(r[map.mov]) || 1 : 1, hOp: num(r[map.hOp]), hGr: num(r[map.hGr]),
+      vent: map.vent ? clean(r[map.vent]).toUpperCase() !== 'NO' : true, ind: map.ind ? clean(r[map.ind]).toUpperCase() !== 'NO' : true });
+  }
+  const horas = new Map(); const warn = [];
+  if (hName){
+    const hr = XLSX.utils.sheet_to_json(wb.Sheets[hName], {header:1, raw:true, blankrows:false});
+    const head = (hr[0]||[]).map(x => clean(x).toUpperCase());
+    const iP = head.indexOf('PRO'), iE = head.indexOf('ETT');
+    for (const r of hr.slice(1)){ const ms = parseDT(r[0]); if (ms==null) continue; horas.set(Math.floor(ms/DAY), {PRO: num(r[iP]), ETT: num(r[iE])}); }
+  } else warn.push('no hay hoja H_HORAS: las horas de grupo salen de la columna HORAS_GRUPO');
+  let puntos = [];
+  if (pName){ puntos = XLSX.utils.sheet_to_json(wb.Sheets[pName], {header:1, raw:true, blankrows:false}).slice(1).filter(r => r[0]).map(r => [clean(r[0]), clean(r[1]).toUpperCase(), num(r[2])]); }
+  return { ev, horas, puntos, warn };
+}
+function finish(d){
+  for (const e of d.ev){ e.day = Math.floor(e.ms/DAY); e.hour = new Date(e.ms).getUTCHours(); }
+  state.ev = d.ev; state.horas = d.horas; state.puntos = d.puntos || [];
+}
+
+/* ---------- Datos compactos (para incrustar) ---------- */
+function toCompact(){
+  const dict = {}; const idx = (n, v) => { const d = dict[n] || (dict[n] = {list:[], map:new Map()}); if (!d.map.has(v)){ d.map.set(v, d.list.length); d.list.push(v); } return d.map.get(v); };
+  const r5 = x => Math.round(x*1e5)/1e5;
+  const ev = state.ev.map(e => [Math.round(e.ms/1000), idx('o', e.op), idx('g', e.g), idx('p', e.oper), idx('t', e.temp), idx('u', e.turno), e.pts, e.mov, r5(e.hOp), r5(e.hGr), e.vent ? 1 : 0, e.ind ? 1 : 0]);
+  const D = {}; for (const k in dict) D[k] = dict[k].list;
+  return { v:1, file: state.fileName, dict: D, ev, horas: [...state.horas].map(([d, h]) => [d, h.PRO, h.ETT]), puntos: state.puntos };
+}
+function fromCompact(o){
+  const D = o.dict;
+  const ev = o.ev.map(a => ({ ms: a[0]*1000, op: D.o[a[1]], g: D.g[a[2]], oper: D.p[a[3]], temp: D.t[a[4]], turno: D.u[a[5]], pts: a[6], mov: a[7], hOp: a[8], hGr: a[9], vent: !!a[10], ind: !!a[11] }));
+  return { ev, horas: new Map(o.horas.map(([d, p, e]) => [d, {PRO:p, ETT:e}])), puntos: o.puntos || [] };
+}
+window.__toCompact = toCompact;
+
+/* ---------- Datos de ejemplo (inventados) ---------- */
+function sample(){
+  let seed = 7; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const P = {Recepcion:{FR:1,SU:1,NR:1}, Zonaje:{FR:2,SU:4,NR:2}, Precarga:{FR:.5,SU:1,NR:.5}, Carga:{FR:2,SU:4,NR:2}};
+  const people = [['Martín A.','PRO',0],['Soler B.','PRO',0],['Ferrer C.','PRO',0],['Vidal D.','PRO',1],['Pons E.','PRO',1],['Ribes F.','PRO',2],['Mora G.','PRO',2],['Llopis H.','PRO',2],['Sanz I.','PRO',0],['Bosch J.','PRO',1],
+    ['Climent K.','ETT',0],['Peris L.','ETT',1],['Roig M.','ETT',2],['Gil N.','ETT',0],['Tormo O.','ETT',1]];
+  const TUR = ['N 00-08','M 08-16','T 16-00'];
+  const start = Math.floor(Date.UTC(2026,9,26)/DAY); const ev = [], horas = new Map();
+  for (let d = start; d < start + 6; d++){
+    const sat = d === start + 5; let hP = 0, hE = 0;
+    for (const [op, g, t] of people){
+      if (sat && rnd() < 0.6) continue; if (rnd() < 0.08) continue;
+      const speed = (g === 'ETT' ? 20 : 22) * (0.75 + rnd()*0.5); const span = 6.5 + rnd()*1.5; if (g === 'PRO') hP += 8; else hE += 8;
+      const n = Math.round(speed*span); const hOp = span/n;
+      for (let i = 0; i < n; i++){
+        const oper = (() => { const x = rnd(); return x < 0.33 ? 'Recepcion' : x < 0.64 ? 'Zonaje' : x < 0.67 ? 'Precarga' : 'Carga'; })();
+        const temp = rnd() < 0.55 ? 'SU' : rnd() < 0.98 ? 'FR' : 'NR';
+        const ms = d*DAY + (t*8 + (i/n)*span)*3600e3 + Math.floor(rnd()*60e3);
+        ev.push({ ms, op, g, oper, temp, turno: TUR[t], pts: P[oper][temp], mov:1, hOp, hGr:0, vent:true, ind:true });
+      }
+    }
+    horas.set(d, {PRO:hP, ETT:hE});
+  }
+  for (const g of ['PRO','ETT']) for (const [d, h] of horas){ const es = ev.filter(e => e.g===g && Math.floor(e.ms/DAY)===d); es.forEach(e => e.hGr = h[g]/es.length); }
+  const puntos = []; for (const o of OPER_ORDER) for (const t of ['FR','NR','SU']) puntos.push([o, t, P[o][t]]);
+  return { ev, horas, puntos };
+}
+
+/* ---------- Filtros ---------- */
+function fillSelect(id, values, allLabel, labelFn){
+  const sel = $(id), cur = sel.value;
+  sel.innerHTML = '<option value="">' + allLabel + '</option>' + values.map(v => `<option value="${esc(v)}">${esc(labelFn ? labelFn(v) : v)}</option>`).join('');
+  sel.value = values.includes(cur) ? cur : '';
+}
+const uniq = a => [...new Set(a)].filter(Boolean);
+function setupFilters(){
+  const opers = uniq(state.ev.map(e => e.oper)).sort((a,b) => (OPER_ORDER.indexOf(a)+99*(OPER_ORDER.indexOf(a)<0)) - (OPER_ORDER.indexOf(b)+99*(OPER_ORDER.indexOf(b)<0)));
+  fillSelect('fOper', opers, 'Todas', operLabel);
+  fillSelect('fTemp', uniq(state.ev.map(e => e.temp)).sort(), 'Todas');
+  fillSelect('fTurno', uniq(state.ev.map(e => e.turno)).sort((a,b) => a.localeCompare(b)), 'Todos');
+  const days = [...state.horas.keys()].filter(d => state.horas.get(d).PRO + state.horas.get(d).ETT > 0);
+  const all = days.length ? days : state.ev.map(e => e.day);
+  if (all.length){ const lo = Math.min(...all), hi = Math.max(...all); state.minDay = lo; state.maxDay = hi; $('fFrom').value = isoDay(lo); $('fTo').value = isoDay(hi); }
+  $('tPuntos').tBodies[0].innerHTML = OPER_ORDER.filter(o => state.puntos.some(p => p[0]===o)).map(o => `<tr><td>${operLabel(o)}</td>${['FR','SU','NR'].map(t => { const p = state.puntos.find(x => x[0]===o && x[1]===t); return `<td class="n">${p ? fmt1(p[2]) : '—'}</td>`; }).join('')}</tr>`).join('') || '<tr><td colspan="4">Sin tabla de puntos</td></tr>';
+}
+const dayOfInput = v => v ? Math.floor(Date.parse(v + 'T00:00:00Z')/DAY) : null;
+function readF(){ return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, oper: $('fOper').value, temp: $('fTemp').value, turno: $('fTurno').value }; }
+function readP(){ const v = id => { const n = parseFloat($(id).value); return isFinite(n) && n > 0 ? n : null; }; return { tPts: v('pTargetPts'), tMov: v('pTargetMov') }; }
+
+/* ---------- Cálculo ---------- */
+const sum = (a, k) => a.reduce((s, x) => s + x[k], 0);
+function compute(){
+  const f = readF(), p = readP(), M = state.metric;
+  const target = M === 'pts' ? p.tPts : p.tMov;
+  const sub = f.oper || f.temp || f.turno;
+  const ev = state.ev.filter(e => e.day >= f.from && e.day <= f.to && (!f.oper || e.oper===f.oper) && (!f.temp || e.temp===f.temp) && (!f.turno || e.turno===f.turno));
+  const hasHoras = state.horas.size > 0;
+  const winDays = new Set([...state.horas].filter(([d, h]) => d >= f.from && d <= f.to && h.PRO + h.ETT > 0).map(([d]) => d));
+  const inWin = e => hasHoras ? winDays.has(e.day) : e.vent;
+  const evW = ev.filter(inWin);
+  const groups = ['PRO','ETT'].map(g => {
+    const es = evW.filter(e => e.g === g);
+    const hours = sub || !hasHoras ? sum(es, 'hGr') : [...winDays].reduce((s, d) => s + (state.horas.get(d)[g] || 0), 0);
+    const pts = sum(es, 'pts'), mov = sum(es, 'mov');
+    return { g, n: mov, pts, hours, ptsH: hours ? pts/hours : null, movH: hours ? mov/hours : null };
+  });
+  const val = (o) => M === 'pts' ? o.ptsH : o.movH;
+  const G = Object.fromEntries(groups.map(x => [x.g, x]));
+  const tot = { n: G.PRO.n + G.ETT.n, pts: G.PRO.pts + G.ETT.pts, hours: G.PRO.hours + G.ETT.hours };
+
+  // Por día
+  const days = [...new Set(evW.map(e => e.day).concat([...winDays]))].sort((a,b) => a-b);
+  const daily = days.map(d => { const o = {d};
+    for (const g of ['PRO','ETT']){ const es = evW.filter(e => e.day===d && e.g===g); const h = sub || !hasHoras ? sum(es,'hGr') : (state.horas.get(d)?.[g] || 0);
+      o[g] = { h, pts: sum(es,'pts'), mov: sum(es,'mov') }; o[g].v = h ? (M==='pts' ? o[g].pts : o[g].mov)/h : null; }
+    o.ettShare = (o.PRO.h + o.ETT.h) ? o.ETT.h/(o.PRO.h + o.ETT.h) : null; return o; });
+
+  // Operativa × temperatura (sobre horas de operario, todos los días filtrados)
+  const keyOf = e => e.oper + '|' + e.temp; const cells = new Map();
+  for (const e of ev){ const k = keyOf(e); let c = cells.get(k); if (!c){ c = {oper:e.oper, temp:e.temp, pts:e.pts/e.mov, PRO:{n:0,h:0,p:0}, ETT:{n:0,h:0,p:0}}; cells.set(k, c); } const x = c[e.g]; if (x){ x.n += e.mov; x.h += e.hOp; x.p += e.pts; } }
+  const operRows = [...cells.values()].sort((a,b) => (OPER_ORDER.indexOf(a.oper) - OPER_ORDER.indexOf(b.oper)) || a.temp.localeCompare(b.temp))
+    .map(c => ({...c, share: (c.PRO.n + c.ETT.n) ? c.ETT.n/(c.PRO.n + c.ETT.n) : null, rP: c.PRO.h ? c.PRO.n/c.PRO.h : null, rE: c.ETT.h ? c.ETT.n/c.ETT.h : null }));
+  const byOper = OPER_ORDER.filter(o => ev.some(e => e.oper===o)).map(o => { const r = {o};
+    for (const g of ['PRO','ETT']){ const es = ev.filter(e => e.oper===o && e.g===g); const h = sum(es,'hOp'); r[g] = { n: sum(es,'mov'), pts: sum(es,'pts'), h, v: h ? (M==='pts' ? sum(es,'pts') : sum(es,'mov'))/h : null }; } return r; });
+  const mixTotals = {PRO: sum(ev.filter(e => e.g==='PRO'),'mov'), ETT: sum(ev.filter(e => e.g==='ETT'),'mov')};
+
+  // Turnos y horas del día
+  const turnos = uniq(ev.map(e => e.turno)).sort((a,b) => a.localeCompare(b)).flatMap(t => ['PRO','ETT'].map(g => { const es = ev.filter(e => e.turno===t && e.g===g); const h = sum(es,'hOp'); return { t, g, n: sum(es,'mov'), h, v: h ? (M==='pts' ? sum(es,'pts') : sum(es,'mov'))/h : null }; })).filter(r => r.n);
+  const nDays = new Set(ev.map(e => e.day)).size || 1;
+  const hourly = Array.from({length:24}, (_,h) => ({ PRO: sum(ev.filter(e => e.hour===h && e.g==='PRO'),'mov')/nDays, ETT: sum(ev.filter(e => e.hour===h && e.g==='ETT'),'mov')/nDays }));
+
+  // Operarios
+  const om = new Map();
+  for (const e of ev){ let o = om.get(e.op); if (!o){ o = {op:e.op, g:e.g, ind:e.ind, n:0, pts:0, days:new Map()}; om.set(e.op, o); } o.n += e.mov; o.pts += e.pts; o.days.set(e.day, (o.days.get(e.day)||0) + e.hOp); if (!e.ind) o.ind = false; }
+  const ops = [...om.values()].map(o => { const h = [...o.days.values()].reduce((s,x) => s+x, 0); const ptsH = h ? o.pts/h : null, movH = h ? o.n/h : null; const v = M==='pts' ? ptsH : movH;
+    return {...o, jornadas:o.days.size, h, ptsH, movH, v, vs: target && v!=null ? v/target : null}; });
+  for (const o of ops) o.status = o.h < 4 ? 'mute' : o.vs==null ? 'info' : o.vs >= 1 ? 'good' : o.vs >= 0.85 ? 'warn' : 'bad';
+  const ranked = ops.filter(o => o.ind).sort((a,b) => (b.v ?? -1) - (a.v ?? -1));
+  const excluded = ops.filter(o => !o.ind);
+  const indAvg = g => { const os = ranked.filter(o => o.g===g); const h = os.reduce((s,o) => s+o.h, 0); return h ? os.reduce((s,o) => s + (M==='pts' ? o.pts : o.n), 0)/h : null; };
+
+  return { f, p, M, target, sub, ev, evW, G, tot, val, daily, operRows, byOper, mixTotals, turnos, hourly, ranked, excluded, indPRO: indAvg('PRO'), indETT: indAvg('ETT'), hasHoras };
+}
+
+/* ---------- Conclusiones ---------- */
+function insights(r){
+  const A = [], u = r.M === 'pts' ? 'puntos/h' : 'mov/h', P = r.val(r.G.PRO), E = r.val(r.G.ETT);
+  if (P!=null && E!=null){ const d = E/P - 1; A.push({s: Math.abs(d) < 0.03 ? 'info' : 'info', t: Math.abs(d) < 0.03 ? `PRO y ETT rinden prácticamente igual: ${fmt1(P)} frente a ${fmt1(E)} ${u}.` : `${d > 0 ? 'ETT' : 'PRO'} rinde un ${pct(Math.abs(d))} más por hora de grupo (${fmt1(d > 0 ? E : P)} frente a ${fmt1(d > 0 ? P : E)} ${u}).`}); }
+  if (r.target) for (const g of ['PRO','ETT']){ const v = r.val(r.G[g]); if (v!=null && v < r.target) A.push({s: v < r.target*0.85 ? 'bad' : 'warn', t:`${g} está por debajo del objetivo: ${fmt1(v)} de ${fmt(r.target)} ${u} (${pct(v/r.target)}).`}); else if (v!=null) A.push({s:'good', t:`${g} cumple el objetivo: ${fmt1(v)} ${u}.`}); }
+  if (r.M === 'pts' && r.G.PRO.n && r.G.ETT.n){ const pmP = r.G.PRO.pts/r.G.PRO.n, pmE = r.G.ETT.pts/r.G.ETT.n; if (Math.abs(pmE/pmP - 1) > 0.05) A.push({s:'info', t:`Cada movimiento de ${pmE > pmP ? 'ETT' : 'PRO'} vale más puntos de media (${fmt1(Math.max(pmP,pmE))} frente a ${fmt1(Math.min(pmP,pmE))}): hace más zonaje y carga de congelado.`}); }
+  const tot = r.G.PRO.hours + r.G.ETT.hours; if (tot) A.push({s:'info', t:`ETT aporta el ${pct(r.G.ETT.hours/tot)} de las horas y el ${pct(r.G.ETT.pts/(r.G.PRO.pts + r.G.ETT.pts || 1))} de los puntos.`});
+  const worst = r.daily.filter(d => d.PRO.v!=null || d.ETT.v!=null).map(d => ({d, v: (d.PRO.h + d.ETT.h) ? ((r.M==='pts' ? d.PRO.pts + d.ETT.pts : d.PRO.mov + d.ETT.mov))/(d.PRO.h + d.ETT.h) : null})).filter(x => x.v!=null && (x.d.PRO.h + x.d.ETT.h) >= 40).sort((a,b) => a.v - b.v)[0];
+  if (worst && r.target && worst.v < r.target) A.push({s:'warn', t:`Día más flojo: ${dayLabel(worst.d.d)}, con ${fmt1(worst.v)} ${u} entre los dos grupos.`});
+  const below = r.ranked.filter(o => o.status === 'bad'); if (below.length) A.push({s:'warn', t:`${below.length} ${below.length===1 ? 'operario queda' : 'operarios quedan'} por debajo del 85% del objetivo: ${below.slice(0,4).map(o => o.op).join(', ')}${below.length > 4 ? '…' : ''}.`});
+  const fast = r.operRows.filter(c => c.rP && c.rE && c.PRO.n >= 50 && c.ETT.n >= 50).map(c => ({c, d: c.rE/c.rP - 1})).sort((a,b) => Math.abs(b.d) - Math.abs(a.d))[0];
+  if (fast && Math.abs(fast.d) > 0.1) A.push({s:'info', t:`Mayor diferencia por operativa: ${operLabel(fast.c.oper)} ${fast.c.temp}, donde ${fast.d > 0 ? 'ETT' : 'PRO'} va un ${pct(Math.abs(fast.d))} más rápido en mov/h de operario.`});
+  if (r.excluded.length) A.push({s:'info', t:`Fuera del ranking individual (usuario compartido): ${r.excluded.map(o => o.op).join(', ')}.`});
+  const order = {bad:0, warn:1, good:2, info:3}; return A.sort((a,b) => order[a.s] - order[b.s]);
+}
+
+/* ---------- Pintado ---------- */
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const LABEL = {good:'Cumple', warn:'Cerca', bad:'Por debajo', mute:'Pocas horas', info:'—'};
+function render(){
+  const r = compute(); state.last = r; const u = r.M === 'pts' ? 'puntos/h' : 'mov/h';
+  $('rangeLabel').textContent = isFinite(r.f.from) ? `Del ${dayLabel(r.f.from)} al ${dayLabel(r.f.to)}` + (r.sub ? ' · horas de grupo repartidas por el filtro' : ' · horas de H_HORAS') : '';
+  for (const g of ['PRO','ETT']){
+    const x = r.G[g], K = g === 'PRO' ? 'Pro' : 'Ett', v = r.val(x);
+    $('v'+K+'Main').textContent = fmt1(v); $('v'+K+'Unit').textContent = u;
+    $('v'+K+'Mov').textContent = r.M === 'pts' ? fmt1(x.movH) : fmt1(x.ptsH); $('v'+K+'Mov').previousElementSibling.textContent = r.M === 'pts' ? 'Movimientos/h' : 'Puntos/h';
+    $('v'+K+'H').textContent = fmt1(x.hours); $('v'+K+'Pts').textContent = fmt(x.pts); $('v'+K+'N').textContent = fmt(x.n);
+    const scale = Math.max(r.target || 0, r.val(r.G.PRO) || 0, r.val(r.G.ETT) || 0) * 1.15 || 1;
+    $('v'+K+'Bar').style.width = Math.min(100, (v||0)/scale*100) + '%';
+    const goal = $('v'+K+'Goal'); goal.hidden = !r.target; if (r.target){ goal.style.left = (r.target/scale*100) + '%'; goal.title = 'Objetivo ' + fmt(r.target); }
+    const card = document.querySelector(`.vs-card[data-g="${g}"]`); card.dataset.s = !r.target || v==null ? '' : v >= r.target ? 'good' : v >= r.target*0.85 ? 'warn' : 'bad';
+  }
+  const P = r.val(r.G.PRO), E = r.val(r.G.ETT);
+  $('vDiff').textContent = P && E ? sgn(E-P) + fmt1(E-P) : '—';
+  $('vDiffSub').textContent = P && E ? `ETT ${E >= P ? 'por encima' : 'por debajo'} de PRO (${sgn(E/P-1)}${pct(E/P-1)})` : '';
+
+  const T = r.tot; const sh = [['Horas', r.G.ETT.hours, T.hours], ['Movimientos', r.G.ETT.n, T.n], ['Puntos', r.G.ETT.pts, T.pts], ['Operarios', r.ranked.filter(o => o.g==='ETT').length + r.excluded.filter(o => o.g==='ETT').length, r.ranked.length + r.excluded.length]];
+  $('shareBars').innerHTML = sh.map(([l, a, b]) => { const s = b ? a/b : 0; return `<div class="share-row"><span>${l}</span><div class="share-track"><i style="width:${(1-s)*100}%" class="pro"></i><i style="width:${s*100}%" class="ett"></i></div><b>${pct(s)}</b><em>${fmt(a)} de ${fmt(b)}</em></div>`; }).join('');
+
+  const A = insights(r); state.alerts = A;
+  $('alertCount').textContent = `${A.filter(a => a.s==='bad' || a.s==='warn').length} a revisar`;
+  $('alerts').innerHTML = A.map(a => `<li><span class="chip ${a.s}">${a.s==='bad'?'Bajo':a.s==='warn'?'Aviso':a.s==='good'?'OK':'Dato'}</span><span>${esc(a.t)}</span></li>`).join('');
+
+  $('dayTitle').textContent = r.M === 'pts' ? 'Puntos por hora' : 'Movimientos por hora';
+  $('daySub').textContent = r.target ? `Objetivo ${fmt(r.target)} ${u}` : 'Sin objetivo';
+  $('operTitle').textContent = 'Ritmo por operativa · ' + u;
+  $('thTurnoRate').textContent = r.M === 'pts' ? 'Pts/h' : 'Mov/h';
+  $('opTitle').textContent = r.M === 'pts' ? 'Puntos por hora de jornada' : 'Movimientos por hora de jornada';
+  $('opSub').textContent = `Media PRO ${fmt1(r.indPRO)} · media ETT ${fmt1(r.indETT)}` + (r.target ? ` · objetivo ${fmt(r.target)}` : '');
+
+  const g = x => `<span class="gtag ${x.toLowerCase()}">${x}</span>`;
+  $('tOper').tBodies[0].innerHTML = r.operRows.map(c => { const best = c.rP && c.rE ? (Math.abs(c.rE/c.rP - 1) < 0.05 ? '<span class="chip mute">Igual</span>' : g(c.rE > c.rP ? 'ETT' : 'PRO')) : '—';
+    return `<tr><td>${operLabel(c.oper)}</td><td>${esc(c.temp)}</td><td class="n">${fmt1(c.pts)}</td><td class="n">${fmt(c.PRO.n)}</td><td class="n">${fmt(c.ETT.n)}</td><td class="n">${pct(c.share)}</td><td class="n">${fmt1(c.rP)}</td><td class="n">${fmt1(c.rE)}</td><td>${best}</td></tr>`; }).join('') || '<tr><td colspan="9">Sin datos</td></tr>';
+  $('tTurno').tBodies[0].innerHTML = r.turnos.map(t => `<tr><td>${esc(t.t)}</td><td>${g(t.g)}</td><td class="n">${fmt(t.n)}</td><td class="n">${fmt1(t.h)}</td><td class="n">${fmt1(t.v)}</td></tr>`).join('') || '<tr><td colspan="5">Sin datos</td></tr>';
+  $('tOps').tBodies[0].innerHTML = r.ranked.concat(r.excluded).map(o => `<tr${o.ind ? '' : ' class="dim"'}><td>${esc(o.op)}${o.ind ? '' : ' <span class="chip mute">no individual</span>'}</td><td>${g(o.g)}</td><td class="n">${fmt(o.jornadas)}</td><td class="n">${fmt1(o.h)}</td><td class="n">${fmt(o.n)}</td><td class="n">${fmt(o.pts)}</td><td class="n">${fmt1(o.ptsH)}</td><td class="n">${fmt1(o.movH)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td>${o.ind ? `<span class="chip ${o.status}">${LABEL[o.status]}</span>` : ''}</td></tr>`).join('') || '<tr><td colspan="10">Sin datos</td></tr>';
+  $('excludedNote').textContent = r.excluded.length ? `${r.excluded.map(o => o.op).join(', ')}: usuario marcado como no individual en FACT; suma en su grupo pero no en el ranking.` : '';
+  renderCharts(r);
+}
+
+function mk(id, config){
+  if (state.charts[id]) state.charts[id].destroy();
+  const c = $(id); if (!c) return;
+  if (!window.Chart){ c.parentElement.innerHTML = '<div class="nochart">No se pudo cargar la librería de gráficos. Revisa la conexión a Internet.</div>'; return; }
+  state.charts[id] = new Chart(c, config);
+}
+function renderCharts(r){
+  if (!r || !window.Chart){ if (r) ['cDay','cHours','cMix','cOperRate','cHour','cOps'].forEach(id => mk(id)); return; }
+  const C = { ink:tok('--ink'), muted:tok('--muted'), line:tok('--line'), pro:tok('--pro'), ett:tok('--ett'), good:tok('--good'), warn:tok('--warn'), bad:tok('--bad'), other:tok('--other') };
+  Chart.defaults.color = C.muted; Chart.defaults.borderColor = C.line; Chart.defaults.font.family = 'Barlow, system-ui, sans-serif'; Chart.defaults.font.size = 12;
+  Chart.defaults.plugins.legend.labels.boxWidth = 12; Chart.defaults.maintainAspectRatio = false; Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:300};
+  const grid = {color:C.line}, noGrid = {display:false}, u = r.M === 'pts' ? 'puntos/h' : 'mov/h';
+  const labels = r.daily.map(d => dayLabel(d.d));
+  const targetDs = r.target ? [{ type:'line', label:'Objetivo', data: labels.map(() => r.target), borderColor:C.bad, borderDash:[5,4], pointRadius:0, borderWidth:1.5 }] : [];
+  mk('cDay', { type:'bar', data:{ labels, datasets:[
+    { label:'PRO', data:r.daily.map(d => d.PRO.v), backgroundColor:C.pro, borderRadius:3 },
+    { label:'ETT', data:r.daily.map(d => d.ETT.v), backgroundColor:C.ett, borderRadius:3 }, ...targetDs ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)} ${u}` + (c.dataset.label!=='Objetivo' ? ` · ${fmt1(r.daily[c.dataIndex][c.dataset.label].h)} h` : '') } } }, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true} } } });
+  mk('cHours', { data:{ labels, datasets:[
+    { type:'bar', label:'PRO', data:r.daily.map(d => d.PRO.h), backgroundColor:C.pro, stack:'h', yAxisID:'y' },
+    { type:'bar', label:'ETT', data:r.daily.map(d => d.ETT.h), backgroundColor:C.ett, stack:'h', yAxisID:'y' },
+    { type:'line', label:'% ETT', data:r.daily.map(d => d.ettShare==null ? null : d.ettShare*100), borderColor:C.ink, backgroundColor:C.ink, pointRadius:3, yAxisID:'y1', spanGaps:true } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => c.dataset.yAxisID==='y1' ? `% ETT: ${fmt(c.parsed.y)}%` : `${c.dataset.label}: ${fmt1(c.parsed.y)} h` } } },
+      scales:{ x:{stacked:true, grid:noGrid}, y:{stacked:true, grid, beginAtZero:true, title:{display:true, text:'Horas'}}, y1:{position:'right', grid:noGrid, min:0, max:100, ticks:{callback: v => v + '%'}} } } });
+  const OC = { Recepcion:tok('--fr'), Zonaje:tok('--su'), Precarga:C.other, Carga:C.ink };
+  mk('cMix', { type:'bar', data:{ labels:['PRO','ETT'], datasets: r.byOper.map(o => ({ label: operLabel(o.o), data: ['PRO','ETT'].map(g => r.mixTotals[g] ? o[g].n/r.mixTotals[g]*100 : 0), backgroundColor: OC[o.o] || C.other, stack:'m' })) },
+    options:{ indexAxis:'y', plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt(c.parsed.x)}%` } } }, scales:{ x:{stacked:true, max:100, grid, ticks:{callback: v => v + '%'}}, y:{stacked:true, grid:noGrid} } } });
+  mk('cOperRate', { type:'bar', data:{ labels: r.byOper.map(o => operLabel(o.o)), datasets:[
+    { label:'PRO', data:r.byOper.map(o => o.PRO.v), backgroundColor:C.pro, borderRadius:3 }, { label:'ETT', data:r.byOper.map(o => o.ETT.v), backgroundColor:C.ett, borderRadius:3 } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)} ${u}` } } }, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true} } } });
+  mk('cHour', { type:'bar', data:{ labels: r.hourly.map((_,h) => pad(h)), datasets:[
+    { label:'PRO', data:r.hourly.map(h => h.PRO), backgroundColor:C.pro, stack:'s' }, { label:'ETT', data:r.hourly.map(h => h.ETT), backgroundColor:C.ett, stack:'s' } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ title: it => it[0].label + ':00 – ' + pad((+it[0].label+1)%24) + ':00', label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)} mov/día` } } }, scales:{ x:{stacked:true, grid:noGrid, title:{display:true, text:'Hora'}}, y:{stacked:true, grid, beginAtZero:true} } } });
+  const ops = r.ranked.filter(o => o.h >= 1).slice(0, 30);
+  mk('cOps', { data:{ labels: ops.map(o => o.op), datasets:[
+    { type:'bar', label:u, data: ops.map(o => o.v), backgroundColor: ops.map(o => o.g==='ETT' ? C.ett : C.pro), borderRadius:3 },
+    ...(r.target ? [{ type:'line', label:'Objetivo', data: ops.map(() => r.target), borderColor:C.bad, borderDash:[5,4], pointRadius:0, borderWidth:1.5 }] : []) ] },
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => c.dataset.label==='Objetivo' ? `Objetivo ${fmt(r.target)}` : `${ops[c.dataIndex].g} · ${fmt1(c.parsed.x)} ${u} · ${fmt1(ops[c.dataIndex].h)} h · ${fmt(ops[c.dataIndex].n)} mov.` } } },
+      scales:{ x:{grid, beginAtZero:true}, y:{grid:noGrid, ticks:{autoSkip:false}} } } });
+}
+
+/* ---------- Interfaz ---------- */
+let toastT; function toast(m){ const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 4500); }
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
+  const txt = [...$(b.dataset.copy).rows].map(tr => [...tr.cells].map(c => c.textContent.trim()).join('\t')).join('\n');
+  const done = () => toast('Tabla copiada. Pégala en Excel con Ctrl+V.');
+  const fb = () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch(e){ toast('No se pudo copiar.'); } ta.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fb); else fb();
+}));
+$('exportXlsx').addEventListener('click', () => {
+  const r = state.last; if (!r || !window.XLSX){ toast('No se pudo cargar la librería de Excel.'); return; }
+  const wb = XLSX.utils.book_new(); const add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:'Sin datos'}]), n); const r2 = x => x==null ? '' : +x.toFixed(2);
+  add('Grupos', ['PRO','ETT'].map(g => ({Grupo:g, Horas:r2(r.G[g].hours), Movimientos:r.G[g].n, Puntos:r.G[g].pts, 'Puntos/h':r2(r.G[g].ptsH), 'Mov/h':r2(r.G[g].movH)})));
+  add('Por día', r.daily.map(d => ({Día:isoDay(d.d), 'Horas PRO':r2(d.PRO.h), 'Horas ETT':r2(d.ETT.h), 'Pts PRO':d.PRO.pts, 'Pts ETT':d.ETT.pts, 'Mov PRO':d.PRO.mov, 'Mov ETT':d.ETT.mov, 'Pts/h PRO':r2(d.PRO.h ? d.PRO.pts/d.PRO.h : null), 'Pts/h ETT':r2(d.ETT.h ? d.ETT.pts/d.ETT.h : null)})));
+  add('Operativas', r.operRows.map(c => ({Operativa:operLabel(c.oper), Temp:c.temp, 'Puntos/mov':c.pts, 'Mov PRO':c.PRO.n, 'Mov ETT':c.ETT.n, '% ETT':c.share!=null ? Math.round(c.share*100) : '', 'Mov/h PRO':r2(c.rP), 'Mov/h ETT':r2(c.rE)})));
+  add('Operarios', r.ranked.concat(r.excluded).map(o => ({Operario:o.op, Grupo:o.g, Individual:o.ind ? 'SI' : 'NO', Jornadas:o.jornadas, Horas:r2(o.h), Movimientos:o.n, Puntos:o.pts, 'Pts/h':r2(o.ptsH), 'Mov/h':r2(o.movH)})));
+  add('Conclusiones', (state.alerts||[]).map(a => ({Nivel:a.s, Texto:a.t})));
+  try { XLSX.writeFile(wb, 'PRO_vs_ETT.xlsx'); toast('Informe generado. Si no se descarga, abre el dashboard desde el archivo HTML en tu PC.'); } catch(e){ toast('Este visor no permite descargas. Usa "Copiar tabla".'); }
+});
+function applyTheme(t){ if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+applyTheme(store.get('to-theme'));
+$('themeBtn').addEventListener('click', () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; const n = dark ? 'light' : 'dark'; applyTheme(n); store.set('to-theme', n); renderCharts(state.last); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderCharts(state.last));
+function setMetric(m){ state.metric = m; $('mPts').setAttribute('aria-pressed', m==='pts'); $('mMov').setAttribute('aria-pressed', m==='mov'); store.set('pe-metric', m); render(); }
+$('mPts').addEventListener('click', () => setMetric('pts')); $('mMov').addEventListener('click', () => setMetric('mov'));
+const PARAMS = ['pTargetPts','pTargetMov'];
+try { const s = JSON.parse(store.get('pe-params') || 'null'); if (s) PARAMS.forEach(k => { if (s[k] != null) $(k).value = s[k]; }); } catch(e){}
+PARAMS.forEach(id => $(id).addEventListener('change', () => { store.set('pe-params', JSON.stringify(Object.fromEntries(PARAMS.map(k => [k, $(k).value])))); render(); }));
+['fFrom','fTo','fOper','fTemp','fTurno'].forEach(id => $(id).addEventListener('change', render));
+$('resetFilters').addEventListener('click', () => { ['fOper','fTemp','fTurno'].forEach(id => $(id).value = ''); if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
+function showBanner(kind, tag, text){ const b = $('banner'); b.hidden = false; b.classList.toggle('error', kind==='error'); b.querySelector('b').textContent = tag; $('bannerText').textContent = text; }
+function useData(d, label){ finish(d); $('sourceLabel').textContent = label; setupFilters(); render(); }
+$('excelFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return; $('sourceLabel').textContent = 'Leyendo ' + file.name + '…';
+  const rd = new FileReader();
+  rd.onload = ev => {
+    try { const res = loadWorkbook(new Uint8Array(ev.target.result), file.name); if (!res.ev.length) throw new Error('La hoja FACT no tiene movimientos con fecha y operario.');
+      state.source = 'file'; state.fileName = file.name; useData(res, `${file.name} · ${fmt(res.ev.length)} movimientos · ${res.horas.size} días con horas`);
+      if (res.warn.length) showBanner('error', 'Revisa', 'Cargado con avisos: ' + res.warn.join('; ') + '.'); else $('banner').hidden = true; toast('Excel cargado: ' + file.name);
+    } catch(err){ $('sourceLabel').textContent = state.fileName || 'Datos de ejemplo'; showBanner('error', 'Error', err.message); }
+    e.target.value = '';
+  };
+  rd.readAsArrayBuffer(file);
+});
+state.metric = store.get('pe-metric') === 'mov' ? 'mov' : 'pts'; $('mPts').setAttribute('aria-pressed', state.metric==='pts'); $('mMov').setAttribute('aria-pressed', state.metric==='mov');
+const emb = document.getElementById('embedded-data'); let started = false;
+if (emb && emb.textContent.trim()){ try { const o = JSON.parse(emb.textContent); const d = fromCompact(o); state.source = 'embedded'; state.fileName = o.file || 'Excel';
+  useData(d, `${state.fileName} · ${fmt(d.ev.length)} movimientos · ${d.horas.size} días con horas`);
+  showBanner('info', 'Datos', `Datos de ${state.fileName}, semana del ${dayLabel(state.minDay)} al ${dayLabel(state.maxDay)}. Para otra semana, pulsa Cargar Excel.`); started = true; } catch(e){} }
+if (!started){ const s = sample(); useData(s, `Datos de ejemplo · ${fmt(s.ev.length)} movimientos · 6 días`); }
+})();
+</script>
+</body>
+</html>

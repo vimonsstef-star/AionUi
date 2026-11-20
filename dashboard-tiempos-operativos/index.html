@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tiempos Operativos Valencia</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<style>
+/* Layout: cabecera de muelle + barra de filtros + bloques apilados (resumen → plantilla → zonaje → viajes → operadores) */
+:root{
+  --bg:#eef2f4; --surface:#ffffff; --sunk:#f5f8f9; --ink:#14212b; --muted:#566874; --line:#d6dee3;
+  --accent:#0a6a85; --accent-ink:#ffffff;
+  --fr:#16907d; --su:#2f53a8; --other:#8d9aa4;
+  --good:#2a7f3e; --warn:#b86e00; --bad:#bf3a30;
+  --good-bg:#e3f2e7; --warn-bg:#fbefd9; --bad-bg:#f9e2df; --info-bg:#e1eff4;
+  --font-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-data:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d151b; --surface:#152029; --sunk:#111b23; --ink:#e4ecf1; --muted:#93a4b1; --line:#253540;
+  --accent:#4cb0cc; --accent-ink:#06222c;
+  --fr:#3cc3ab; --su:#7795e6; --other:#6d7c88;
+  --good:#5cc27a; --warn:#e6a43c; --bad:#f06c62;
+  --good-bg:#16301f; --warn-bg:#352812; --bad-bg:#3a1c1a; --info-bg:#132c36;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1360px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:.01em}
+.num,td.n,th.n{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+button,.btn,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;padding-block:20px 16px}
+.eyebrow{font-family:var(--font-data);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top h1{font-size:clamp(30px,5vw,42px);font-weight:700;line-height:1}
+.dock-strip{display:inline-flex;gap:3px;margin-left:10px;vertical-align:middle}
+.dock-strip i{width:7px;height:22px;background:var(--accent);opacity:.25;display:block}
+.dock-strip i:nth-child(2){opacity:.45}.dock-strip i:nth-child(3){opacity:.7}.dock-strip i:nth-child(4){opacity:1}
+.source{color:var(--muted);font-size:13px;margin-top:6px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:5px 10px;font-size:13px}
+#excelFile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.banner{background:var(--info-bg);border-bottom:1px solid var(--line);font-size:14px}
+.banner .wrap{padding-block:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banner b{font-family:var(--font-data);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink);padding:2px 7px;border-radius:3px}
+.banner.error{background:var(--bad-bg)}
+
+/* Filtros */
+.filters{padding-block:16px 4px;display:grid;gap:10px}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field input,.field select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+details.params{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+details.params summary{cursor:pointer;font-weight:600;font-size:14px}
+details.params .frow{margin-top:10px}
+.hint{font-size:12px;color:var(--muted)}
+
+/* Navegación de secciones */
+.secnav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.secnav .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+.secnav a{white-space:nowrap;text-decoration:none;color:var(--ink);font-size:14px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:var(--surface)}
+.secnav a:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Secciones */
+main{display:grid;gap:28px;padding-block:20px 48px}
+section{display:grid;gap:14px;scroll-margin-top:60px}
+.sechead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.sechead h2{font-size:26px;font-weight:700;text-transform:uppercase}
+.sechead p{margin:0;color:var(--muted);font-size:14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
+.g32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+@media (max-width:900px){.g32{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ptitle{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;align-items:baseline}
+.ptitle h3{font-size:19px;font-weight:600}
+.ptitle span{font-size:12px;color:var(--muted)}
+.chart-box{position:relative;height:290px;width:100%}
+.chart-box.tall{height:360px}
+.nochart{display:grid;place-items:center;height:100%;color:var(--muted);font-size:14px;text-align:center}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.kpi[data-s="good"]::after{background:var(--good)}.kpi[data-s="warn"]::after{background:var(--warn)}.kpi[data-s="bad"]::after{background:var(--bad)}
+.kpi span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi strong{font-family:var(--font-display);font-size:34px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+
+/* Alertas */
+.alerts{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:330px;overflow-y:auto}
+.alerts li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;border-radius:6px;background:var(--sunk);font-size:14px}
+.chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:12px;white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good)}.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.info{background:var(--info-bg);color:var(--accent)}
+.chip.mute{background:var(--sunk);color:var(--muted)}
+
+/* Tablas */
+.table-wrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.n,td.n{text-align:right}
+tbody tr:hover td{background:var(--sunk)}
+.scroll-y{max-height:420px;overflow:auto}
+.tempdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Mapa de calor */
+.heat td{padding:0;border:1px solid var(--surface);text-align:center;font-family:var(--font-data);font-size:11px;min-width:30px;height:26px}
+.heat td.lbl{padding:0 8px;text-align:left;font-family:var(--font-body);font-size:13px;background:var(--surface);position:sticky;left:0;z-index:1}
+.heat th{text-align:center;padding:4px 2px;font-family:var(--font-data)}
+.heat th:first-child{position:sticky;left:0;z-index:2}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px);z-index:20}
+footer{color:var(--muted);font-size:12px;padding-block:0 32px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:560px){.kpi strong{font-size:28px}.chart-box{height:250px}.sechead h2{font-size:22px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Muelle · Delegación Valencia · Temperatura controlada</div>
+      <h1>Tiempos Operativos<span class="dock-strip" aria-hidden="true"><i></i><i></i><i></i><i></i></span></h1>
+      <div class="source" id="sourceLabel">Datos de ejemplo</div>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="excelFile">Cargar Excel</label>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,.xlsm">
+      <button class="btn" id="exportXlsx" type="button">Exportar informe Excel</button>
+      <button class="btn" id="themeBtn" type="button" aria-label="Cambiar tema claro u oscuro">Tema</button>
+    </div>
+  </div>
+</header>
+<div class="banner" id="banner"><div class="wrap"><b>Ejemplo</b><span id="bannerText">Estás viendo datos inventados. Pulsa <strong>Cargar Excel</strong> y elige <em>Tiempos Operativos.xlsx</em> (hojas BD_LLE_NAC y BD_MOV_IQ). El archivo se procesa en tu navegador, no se sube a ningún sitio.</span></div></div>
+
+<div class="wrap filters">
+  <div class="frow">
+    <div class="field"><label for="fFrom">Desde</label><input type="date" id="fFrom"></div>
+    <div class="field"><label for="fTo">Hasta</label><input type="date" id="fTo"></div>
+    <div class="field"><label for="fAct">Actividad</label><select id="fAct"><option value="RZPC">Todas</option><option value="ZPC">Zonaje + precarga + carga</option><option value="C">Carga</option><option value="P">Precarga</option><option value="Z">Zonaje</option><option value="R">Recepción</option></select></div>
+    <div class="field"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos</option></select></div>
+    <div class="field"><label for="fOp">Operario</label><select id="fOp"><option value="">Todos</option></select></div>
+    <div class="field"><label for="fTemp">Temperatura</label><select id="fTemp"><option value="">Todas</option></select></div>
+    <div class="field"><label for="fEstado">Estado etiqueta</label><select id="fEstado"><option value="">Todos</option></select></div>
+    <div class="field"><label for="fAg">Agencia (viajes)</label><select id="fAg"><option value="">Todas</option></select></div>
+    <div class="field"><button class="btn" id="resetFilters" type="button">Limpiar filtros</button></div>
+  </div>
+  <details class="params" id="paramsBox">
+    <summary>Parámetros de cálculo</summary>
+    <div class="frow">
+      <div class="field"><label for="pTarget">Objetivo puntos/hora por operario</label><input type="number" id="pTarget" min="1" step="1" value="60" placeholder="Auto"></div>
+      <div class="field"><label for="pShift">Inicio del primer turno (hora)</label><input type="number" id="pShift" min="0" max="23" step="1" value="0"></div>
+      <div class="field"><label for="pJorn">Jornada máxima (h)</label><input type="number" id="pJorn" min="1" max="12" step="0.5" value="8"></div>
+      <div class="field"><label for="pHours">Horas efectivas por turno</label><input type="number" id="pHours" min="1" max="12" step="0.5" value="7"></div>
+      <div class="field"><label for="pSla">Objetivo tiempo en muelle (h)</label><input type="number" id="pSla" min="0.5" step="0.5" value="12"></div>
+      <div class="field"><label for="pTol">Tolerancia puntualidad (min)</label><input type="number" id="pTol" min="0" value="15"></div>
+    </div>
+    <p class="hint">Objetivo de la delegación: 60 puntos/hora por operario. Si lo dejas vacío, se usa la mediana del equipo. Horas de jornada = del primer al último escaneo del operario en el día (cualquier actividad), con el máximo indicado. Tres turnos de 8 h desde la hora de inicio (por defecto 00–08, 08–16, 16–24). Tiempo en muelle = de la fecha de recepción a la fecha de carga de la etiqueta.</p>
+    <div class="table-wrap"><table id="tPts"><thead><tr><th>Puntos por SSCC</th><th class="n">FR</th><th class="n">SU</th><th class="n">NR / otras</th></tr></thead><tbody><tr><td>Recepción</td><td class="n">1</td><td class="n">1</td><td class="n">1</td></tr><tr><td>Zonaje</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr><tr><td>Precarga</td><td class="n">0,5</td><td class="n">1</td><td class="n">0,5</td></tr><tr><td>Carga</td><td class="n">2</td><td class="n">4</td><td class="n">2</td></tr></tbody></table></div>
+  </details>
+</div>
+
+<nav class="secnav" aria-label="Secciones"><div class="wrap">
+  <a href="#resumen">Resumen</a><a href="#plantilla">Plantilla</a><a href="#muelle">Tiempo en muelle</a><a href="#viajes">Viajes</a><a href="#operarios">Operarios</a>
+</div></nav>
+
+<main class="wrap">
+  <section id="resumen">
+    <div class="sechead"><h2>Resumen</h2><p id="rangeLabel"></p></div>
+    <div class="kpis">
+      <article class="kpi" id="kViajes"><span>Viajes de llegada</span><strong>0</strong><em></em></article>
+      <article class="kpi" id="kPuntLle"><span>Llegada puntual</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kSSCC"><span>Puntos</span><strong>0</strong><em></em></article>
+      <article class="kpi" id="kRate"><span>Puntos / hora operario</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kDwell"><span>Tiempo en muelle</span><strong>—</strong><em></em></article>
+      <article class="kpi" id="kStaff"><span>Plantilla vs necesidad</span><strong>—</strong><em></em></article>
+    </div>
+    <div class="grid g32">
+      <article class="panel">
+        <div class="ptitle"><h3>Actividad diaria</h3><span id="trendSub">Puntos por día · viajes</span></div>
+        <div class="chart-box"><canvas id="cTrend"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Alertas</h3><span id="alertCount"></span></div>
+        <ul class="alerts" id="alerts"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="plantilla">
+    <div class="sechead"><h2>Plantilla</h2><p>Carga media por hora y operarios necesarios para absorberla</p></div>
+    <article class="panel">
+      <div class="ptitle"><h3>Carga por hora del día</h3><span id="hourSub"></span></div>
+      <div class="chart-box tall"><canvas id="cHour"></canvas></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Dimensionamiento por turno</h3><span>Medias por día con actividad</span></div>
+      <div class="table-wrap"><table id="tTurnos"><thead><tr><th>Turno</th><th class="n">Puntos/día</th><th class="n">Operarios/día</th><th class="n">Horas-operario/día</th><th class="n">Puntos/h real</th><th class="n">Plantilla necesaria</th><th>Ajuste</th></tr></thead><tbody></tbody></table></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Operario × hora del día</h3><span>Puntos medios por día · los 15 operarios con más puntos</span></div>
+      <div class="table-wrap"><table class="heat" id="tHeat"></table></div>
+    </article>
+  </section>
+
+  <section id="muelle">
+    <div class="sechead"><h2>Tiempo en muelle</h2><p>De la recepción a la carga de cada SSCC</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Distribución de tiempos</h3><span id="dwellSub"></span></div>
+        <div class="chart-box"><canvas id="cDwell"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Mediana según hora de recepción</h3><span>Cuánto espera lo que entra a cada hora</span></div>
+        <div class="chart-box"><canvas id="cDwellHour"></canvas></div>
+      </article>
+    </div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Por categoría de temperatura</h3><span>FR refrigerado · SU congelado</span></div>
+        <div class="table-wrap"><table id="tTemp"><thead><tr><th>Categoría</th><th class="n">SSCC</th><th class="n">Mediana</th><th class="n">P90</th><th class="n">En objetivo</th><th class="n">Sin cargar</th><th class="n">Sin cargar &gt;24 h</th></tr></thead><tbody></tbody></table></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Por tipo de bordereau</h3><span>Tipo Bord</span></div>
+        <div class="table-wrap"><table id="tTipo"><thead><tr><th>Tipo</th><th class="n">SSCC</th><th class="n">Mediana</th><th class="n">P90</th><th class="n">En objetivo</th><th class="n">Sin cargar</th></tr></thead><tbody></tbody></table></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="viajes">
+    <div class="sechead"><h2>Viajes</h2><p>Salida real vs plan · llegada real vs negociada (o plan si no hay negociada)</p></div>
+    <div class="grid g2">
+      <article class="panel">
+        <div class="ptitle"><h3>Puntualidad diaria</h3><span id="tolSub"></span></div>
+        <div class="chart-box"><canvas id="cPunct"></canvas></div>
+      </article>
+      <article class="panel">
+        <div class="ptitle"><h3>Retraso medio de llegada por agencia</h3><span>Minutos · negativo = adelantado</span></div>
+        <div class="chart-box tall"><canvas id="cAgency"></canvas></div>
+      </article>
+    </div>
+    <article class="panel">
+      <div class="ptitle"><h3>Ranking de agencias expedidoras</h3><button class="btn small" type="button" data-copy="tAg">Copiar tabla</button></div>
+      <div class="table-wrap scroll-y"><table id="tAg"><thead><tr><th>Agencia</th><th class="n">Viajes</th><th class="n">Salida puntual</th><th class="n">Llegada puntual</th><th class="n">Retraso medio</th><th class="n">Peor retraso</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+    </article>
+  </section>
+
+  <section id="operarios">
+    <div class="sechead"><h2>Operarios</h2><p>Puntos por hora de jornada (primer a último escaneo del día, máximo 8 h)</p></div>
+    <article class="panel">
+      <div class="ptitle"><h3>Puntos por hora de jornada</h3><span id="opSub"></span></div>
+      <div class="chart-box tall"><canvas id="cOps"></canvas></div>
+    </article>
+    <article class="panel">
+      <div class="ptitle"><h3>Eficiencia por operario</h3><button class="btn small" type="button" data-copy="tOps">Copiar tabla</button></div>
+      <div class="table-wrap scroll-y"><table id="tOps"><thead><tr><th>Operario</th><th>Turno habitual</th><th class="n">Recepciones</th><th class="n">Zonajes</th><th class="n">Precargas</th><th class="n">Cargas</th><th class="n">Jornadas</th><th class="n">Horas</th><th class="n">Puntos</th><th class="n">Pts/h</th><th class="n">Mov/h</th><th class="n">vs objetivo</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+    </article>
+  </section>
+</main>
+<footer class="wrap">Hojas leídas: BD_LLE_NAC (F.VIAJE, HR_SAL_PLAN, HR_SAL_REAL, AGENCIA EXPEDIDORA, HR_LLE_NEGOCIADA, HR_LLE_PLAN, HR_LLE_REAL) y BD_MOV_IQ (Cat Temp, Fecha de recepción, Num. Recep., Fecha Zonaje, El que reparte en zonas, Fecha Carga Etiq, Operador, Estado Etiqueta, Tipo Bord, Num Paquete Pos.). También lee el formato H_BBDD (FECHA_RECEPCION, OPERARIO RECEPCION, FECHA_ ZONAGE, OPERARIO ZONAGE, FECHA PRE CARGA, OPERARIO PRE CARGA, FECHA_CARGA, OPERARIO CARGA, CATEG_TEMPER, STATUS). Opcional: BD_VIAJES para describir los tipos de bordereau. Las fechas sin año (31/03 21:00) toman el año de BD_MOV_IQ.</footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const DAY = 864e5;
+const $ = id => document.getElementById(id);
+const NF = new Intl.NumberFormat('es-ES');
+const NF1 = new Intl.NumberFormat('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmt = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n));
+const fmt1 = n => (n==null||!isFinite(n)) ? '—' : NF1.format(n);
+const pct = n => (n==null||!isFinite(n)) ? '—' : NF.format(Math.round(n*100)) + '%';
+const pad = n => String(n).padStart(2,'0');
+const dayLabel = d => { const t = new Date(d*DAY); return pad(t.getUTCDate()) + '/' + pad(t.getUTCMonth()+1); };
+const isoDay = d => new Date(d*DAY).toISOString().slice(0,10);
+const minLabel = m => { if (m==null||!isFinite(m)) return '—'; const r = Math.round(m); return Math.abs(r) < 60 ? r + ' min' : (r<0?'-':'') + Math.floor(Math.abs(r)/60) + ' h ' + pad(Math.abs(r)%60); };
+const durLabel = m => { if (m==null||!isFinite(m)) return '—'; const r = Math.round(m); if (r < 60) return r + ' min'; if (r < 2880) return Math.floor(r/60) + ' h ' + pad(r%60); return NF1.format(r/1440) + ' días'; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const median = a => quantile(a, .5);
+function quantile(arr, q){ if (!arr.length) return null; const a = Float64Array.from(arr).sort(); const p = (a.length-1)*q, lo = Math.floor(p), hi = Math.ceil(p); return a[lo] + (a[hi]-a[lo])*(p-lo); }
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+
+const state = { trips: [], rows: [], events: [], tipoDesc: {}, source: 'sample', fileName: '', charts: {}, last: null };
+
+/* ---------- Columnas ---------- */
+const norm = s => String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const TRIP_COLS = {
+  fecha:['fviaje','fechaviaje'], salPlan:['hrsalplan','horasalidaplan'], salReal:['hrsalreal','horasalidareal'],
+  agencia:['agenciaexpedidora','agenciaexpediora','agencia'],
+  lleNeg:['hrllenegociada','horallegadanegociada'], llePlan:['hrlleplan','horallegadaplan'], lleReal:['hrllereal','horallegadareal']
+};
+const MOV_COLS = {
+  temp:['cattemp','categtemper','categoriatemp','cattemperatura','temperatura'],
+  recep:['fechaderecepcion','fecharecepcion'], zonaje:['fechazonaje','fechazonage','fechadezonaje'], precarga:['fechaprecarga','fechadeprecarga'], carga:['fechacargaetiq','fechacarga','fechadecarga'],
+  opR:['operariorecepcion','numrecep','operadorrecepcion','receptor'], opZ:['operariozonage','operariozonaje','elquereparteenzonas','elquerepartenzonas','operadorzonaje'],
+  opP:['operarioprecarga','operadorprecarga'], opC:['operariocarga','operadorcarga','operador','operario'],
+  estado:['estadoetiqueta','status','estado'], tipo:['tipobord'], paq:['numpaquetepos','numpaquetes','paquetes'], pal:['numtotpalpos','numpallets']
+};
+function buildMap(headers, spec){
+  const nh = headers.map(h => [h, norm(h)]); const map = {};
+  for (const [field, aliases] of Object.entries(spec)){
+    for (const a of aliases){ const hit = nh.find(([,n]) => n === a); if (hit){ map[field] = hit[0]; break; } }
+    if (!map[field]) for (const a of aliases){ if (a.length < 6 || a === 'operario' || a === 'operador') continue; const hit = nh.find(([,n]) => n.startsWith(a)); if (hit){ map[field] = hit[0]; break; } }
+  }
+  return map;
+}
+const clean = v => v==null ? '' : String(v).trim();
+const person = v => { const s = clean(v); return /[a-zA-ZÀ-ÿ]/.test(s) ? s : ''; };
+const num = v => { if (v==null||v==='') return 0; const n = Number(String(v).replace(',','.')); return isFinite(n) ? n : 0; };
+
+/* Fechas en milisegundos "naive" (UTC) para evitar desfases horarios. Las fechas sin año usan REF_YEAR. */
+let REF_YEAR = new Date().getFullYear();
+const MONTHS = {jan:0,ene:0,feb:1,mar:2,apr:3,abr:3,may:4,jun:5,jul:6,aug:7,ago:7,sep:8,set:8,oct:9,nov:10,dec:11,dic:11};
+function parseDT(v, baseMs){
+  if (v==null || v==='') return null;
+  if (v instanceof Date) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds());
+  if (typeof v === 'number'){
+    if (!isFinite(v)) return null;
+    if (v < 1) return baseMs==null ? null : baseMs + Math.round(v*1440)*60000;
+    return Math.round((v - 25569) * 1440) * 60000;
+  }
+  const s = String(v).trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/))) return Date.UTC(+m[1], m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); }
+  if ((m = s.match(/^(\d{1,2})[ \-]([A-Za-zé]{3,4})[a-zé]*\.?[ \-](\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/))){
+    const mo = MONTHS[norm(m[2]).slice(0,3)]; if (mo != null){ let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, mo, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)); } }
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/))) return Date.UTC(REF_YEAR, m[2]-1, +m[1], +(m[3]||0), +(m[4]||0), +(m[5]||0));
+  if ((m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/))) return baseMs==null ? null : baseMs + (+m[1]*60 + +m[2])*60000;
+  const n = Number(s.replace(',','.')); if (s && isFinite(n)) return parseDT(n, baseMs);
+  return null;
+}
+const hasDate = v => v instanceof Date || (typeof v === 'number' && v >= 1) || (typeof v === 'string' && /^\s*\d{1,4}[\/.\-]\d{1,2}/.test(v));
+function delayMin(real, plan, wrap){ if (real==null || plan==null) return null; let d = (real - plan)/60000; if (wrap){ while (d > 720) d -= 1440; while (d < -720) d += 1440; } return d; }
+
+/* Turnos de 8 h desde una hora de inicio configurable */
+let SHIFT_START = 0, TURNOS = [];
+function shiftName(st){ const n = (st >= 20 || st < 4) ? 'Noche' : st < 12 ? 'Mañana' : 'Tarde'; return `${n} ${pad(st)}–${pad((st+8)%24 || 24)}`; }
+function setShiftStart(st){ SHIFT_START = ((st|0)%24+24)%24; TURNOS = [0,1,2].map(k => { const a = (SHIFT_START + 8*k)%24; return [shiftName(a), Array.from({length:8}, (_,i) => (a+i)%24)]; }); }
+setShiftStart(0);
+const shiftIdx = h => Math.floor(((h - SHIFT_START + 24)%24)/8);
+const turnoOf = h => TURNOS[shiftIdx(h)][0];
+function normTemp(v){ const s = clean(v).toUpperCase(); if (!s) return 'Sin categoría'; if (s.startsWith('FR')) return 'FR'; if (s.startsWith('SU')) return 'SU'; return s; }
+const tempKey = t => t==='FR' ? 'FR' : t==='SU' ? 'SU' : 'Otras';
+const KIND = {R:'Recepción', Z:'Zonaje', P:'Precarga', C:'Carga'};
+const POINTS = {R:{FR:1, SU:1, Otras:1}, Z:{FR:2, SU:4, Otras:2}, P:{FR:0.5, SU:1, Otras:0.5}, C:{FR:2, SU:4, Otras:2}};
+
+function buildTrips(rows, map){
+  const out = [];
+  for (const r of rows){
+    const f = parseDT(r[map.fecha]); if (f==null) continue;
+    const base = Math.floor(f/DAY)*DAY;
+    const sp = parseDT(r[map.salPlan], base), sr = parseDT(r[map.salReal], base);
+    const ln = parseDT(r[map.lleNeg], base), lp = parseDT(r[map.llePlan], base), lr = parseDT(r[map.lleReal], base);
+    const refRaw = ln!=null ? r[map.lleNeg] : r[map.llePlan];
+    out.push({ day: base/DAY, agencia: clean(r[map.agencia]) || 'Sin agencia',
+      salDelay: delayMin(sr, sp, !hasDate(r[map.salReal]) || !hasDate(r[map.salPlan])),
+      lleDelay: delayMin(lr, ln ?? lp, !hasDate(r[map.lleReal]) || !hasDate(refRaw)) });
+  }
+  return out;
+}
+function buildRows(raw, map){
+  // Formato antiguo: sin fecha de carga y con "Operador" como quien zona
+  const legacy = !map.carga && map.zonaje && !map.opZ && map.opC;
+  const out = [];
+  for (const r of raw){
+    const rc = parseDT(r[map.recep]), zn = parseDT(r[map.zonaje]), cg = legacy ? null : parseDT(r[map.carga]), pc = parseDT(r[map.precarga]);
+    if (rc==null && zn==null && cg==null && pc==null) continue;
+    out.push({ rc, zn, cg, pc, opP: person(r[map.opP]), temp: normTemp(r[map.temp]), estado: clean(r[map.estado]) || 'Sin estado', tipo: clean(r[map.tipo]) || '—',
+      opR: person(r[map.opR]), opZ: person(r[legacy ? map.opC : map.opZ]), opC: legacy ? '' : person(r[map.opC]), paq: num(r[map.paq]), pal: num(r[map.pal]) });
+  }
+  return out;
+}
+function finishRows(rows){
+  const events = []; let end = -Infinity;
+  for (const r of rows){
+    r.dwC = (r.rc!=null && r.cg!=null) ? (r.cg - r.rc)/60000 : null; if (r.dwC!=null && (r.dwC < 0 || r.dwC > 43200)) r.dwC = null;
+    r.dwZ = (r.rc!=null && r.zn!=null) ? (r.zn - r.rc)/60000 : null; if (r.dwZ!=null && (r.dwZ < 0 || r.dwZ > 43200)) r.dwZ = null;
+    const ref = r.rc ?? r.zn ?? r.cg; r.day = Math.floor(ref/DAY); r.rh = new Date(ref).getUTCHours();
+    for (const [k, ms, op] of [['R', r.rc, r.opR], ['Z', r.zn, r.opZ], ['P', r.pc, r.opP], ['C', r.cg, r.opC]]){
+      if (ms==null || !op) continue; if (ms > end) end = ms;
+      const hour = new Date(ms).getUTCHours();
+      events.push({ k, op, ms, day: Math.floor(ms/DAY), hour, turno: turnoOf(hour), temp: r.temp, estado: r.estado, pts: POINTS[k][tempKey(r.temp)] });
+    }
+    if (r.rc!=null && r.rc > end) end = r.rc;
+  }
+  const jor = new Map(); for (const e of events){ const key = e.op + '|' + e.day; const j = jor.get(key); if (!j) jor.set(key, [e.ms, e.ms]); else { if (e.ms < j[0]) j[0] = e.ms; if (e.ms > j[1]) j[1] = e.ms; } }
+  state.rows = rows; state.events = events; state.jornada = jor; state.dataEnd = end; state.shiftApplied = SHIFT_START;
+}
+
+/* ---------- Lectura del Excel ---------- */
+function headersOf(ws){ const rows = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:false, range:0}); return Array.from(rows[0]||[], clean); }
+function pickSheet(wb, key, spec, required){
+  let name = wb.SheetNames.find(n => norm(n).includes(key));
+  if (!name) name = wb.SheetNames.find(n => { const m = buildMap(headersOf(wb.Sheets[n]), spec); return required.every(r => m[r]); });
+  return name;
+}
+function loadWorkbook(buf, fileName){
+  if (!window.XLSX) throw new Error('No se pudo cargar la librería de Excel. Revisa la conexión a Internet y recarga la página.');
+  const wb = XLSX.read(buf, {type:'array'});
+  const tName = pickSheet(wb, 'bdllenac', TRIP_COLS, ['fecha','lleReal']);
+  const mName = pickSheet(wb, 'bdmoviq', MOV_COLS, ['recep']);
+  if (!tName && !mName) throw new Error('No encuentro las hojas BD_LLE_NAC ni BD_MOV_IQ en ' + fileName + '.');
+  const warn = []; let trips = [], rows = [];
+  if (mName){
+    const ws = wb.Sheets[mName]; const map = buildMap(headersOf(ws), MOV_COLS);
+    if (!map.recep) warn.push('BD_MOV_IQ sin columna Fecha de recepción');
+    if (!map.carga && !map.zonaje) warn.push('BD_MOV_IQ sin Fecha Carga Etiq ni Fecha Zonaje');
+    rows = buildRows(XLSX.utils.sheet_to_json(ws, {defval:null, raw:true}), map);
+    const yrs = rows.map(r => r.rc ?? r.cg).filter(v => v!=null);
+    if (yrs.length) REF_YEAR = new Date(median(yrs)).getUTCFullYear();
+  } else warn.push('falta la hoja BD_MOV_IQ');
+  if (tName){ const ws = wb.Sheets[tName]; const map = buildMap(headersOf(ws), TRIP_COLS); if (!map.fecha) warn.push('BD_LLE_NAC sin columna F.VIAJE'); trips = buildTrips(XLSX.utils.sheet_to_json(ws, {defval:null, raw:true}), map); }
+  else warn.push('falta la hoja BD_LLE_NAC');
+  const tipoDesc = {};
+  const vName = wb.SheetNames.find(n => norm(n) === 'bdviajes');
+  if (vName){ for (const r of XLSX.utils.sheet_to_json(wb.Sheets[vName], {defval:null})){ const k = clean(r['Tipo Bord']), d = clean(r['ETAPA']); if (k && d && !tipoDesc[k]) tipoDesc[k] = d; } }
+  return { trips, rows, warn, tipoDesc };
+}
+
+/* ---------- Datos compactos (para incrustar) ---------- */
+function toCompact(){
+  const dict = {}; const idx = (name, v) => { const d = dict[name] || (dict[name] = {list:[], map:new Map()}); if (!d.map.has(v)){ d.map.set(v, d.list.length); d.list.push(v); } return d.map.get(v); };
+  const mi = ms => ms==null ? null : Math.round(ms/60000);
+  const rows = state.rows.map(r => [mi(r.rc), mi(r.zn), mi(r.cg), idx('t', r.temp), idx('e', r.estado), idx('b', r.tipo), idx('o', r.opR), idx('o', r.opZ), idx('o', r.opC), r.paq, mi(r.pc), idx('o', r.opP || '')]);
+  const trips = state.trips.map(t => [t.day, idx('a', t.agencia), t.salDelay==null ? null : Math.round(t.salDelay), t.lleDelay==null ? null : Math.round(t.lleDelay)]);
+  const D = {}; for (const k in dict) D[k] = dict[k].list;
+  return { v:1, file: state.fileName, dict: D, rows, trips, tipoDesc: state.tipoDesc };
+}
+function fromCompact(o){
+  const D = o.dict, ms = m => m==null ? null : m*60000;
+  const rows = o.rows.map(a => ({ rc: ms(a[0]), zn: ms(a[1]), cg: ms(a[2]), temp: D.t[a[3]], estado: D.e[a[4]], tipo: D.b[a[5]], opR: D.o[a[6]], opZ: D.o[a[7]], opC: D.o[a[8]], paq: a[9], pal: 0, pc: a[10]!=null ? ms(a[10]) : null, opP: a[11]!=null ? D.o[a[11]] : '' }));
+  const trips = o.trips.map(a => ({ day: a[0], agencia: D.a[a[1]], salDelay: a[2], lleDelay: a[3] }));
+  return { rows, trips, tipoDesc: o.tipoDesc || {} };
+}
+window.__toCompact = toCompact;
+
+/* ---------- Datos de ejemplo (inventados) ---------- */
+function sample(){
+  let seed = 20261104; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const pools = [['Martín A.','Soler B.','Ferrer C.','Vidal D.','Pons E.'],['Ribes F.','Mora G.','Llopis H.','Sanz I.'],['Bosch J.','Climent K.','Peris L.','Roig M.','Gil N.','Tormo O.']];
+  const pick = h => { const p = pools[[2,0,1][shiftIdx(h)]]; return p[Math.floor(rnd()*p.length)]; };
+  const ags = ['STEF MADRID TRANSPORTE','STEF BARCELONA TRANSPORTE','STEF SEVILLA','STEF GETAFE','STEF ALICANTE','STEF VIGO','STEF BURGOS','STEF VITORIA'];
+  const bias = {'STEF SEVILLA':28, 'STEF VIGO':19};
+  const profR = [70,95,105,120,110,30,12,5,8,12,15,20,20,25,50,65,90,95,70,45,65,35,30,55];
+  const end = Math.floor(Date.UTC(2026,10,4)/DAY), toSerial = ms => ms/DAY + 25569, endMs = (end+1)*DAY;
+  const T = [], M = [];
+  for (let d = end-13; d <= end; d++){
+    const dow = new Date(d*DAY).getUTCDay(); const df = dow===0 ? 0.35 : dow===6 ? 0.7 : 1;
+    for (let i = 0; i < Math.round(18*df); i++){
+      const ag = ags[Math.floor(rnd()*ags.length)], sp = 0.74 + rnd()*0.2, lp = 0.05 + rnd()*0.2;
+      const delay = (bias[ag]||0) + (rnd()-0.45)*36 + (rnd()<0.08 ? 40+rnd()*60 : 0);
+      T.push({'F.VIAJE': toSerial(d*DAY), 'HR_SAL_PLAN': sp, 'HR_SAL_REAL': (sp + ((rnd()-0.45)*30)/1440) % 1, 'AGENCIA EXPEDIDORA': ag,
+        'HR_LLE_NEGOCIADA': lp, 'HR_LLE_PLAN': lp, 'HR_LLE_REAL': rnd()<0.03 ? null : ((lp + delay/1440) % 1 + 1) % 1});
+    }
+    for (let h = 0; h < 24; h++){
+      const n = Math.round(profR[h]*(0.8+rnd()*0.4)*df);
+      for (let k = 0; k < n; k++){
+        const rc = d*DAY + h*3600e3 + Math.floor(rnd()*3600e3);
+        const temp = rnd() < 0.53 ? 'SU' : (rnd() < 0.99 ? 'FR' : 'NR');
+        const tipo = rnd() < 0.47 ? 'EX' : rnd() < 0.75 ? 'EN' : 'AQ';
+        let dwH = 1.5 + rnd()*rnd()*22; if (tipo === 'AQ') dwH += rnd()*48;
+        let cg = rc + dwH*3600e3; const ch = new Date(cg).getUTCHours(); if (ch >= 10 && ch < 16 && rnd() < 0.6) cg += (21 - ch)*3600e3;
+        const loaded = cg < endMs;
+        const zon = rnd() < 0.05 ? rc + rnd()*30*60000 : null;
+        M.push({'Cat Temp': temp, 'Fecha de recepción': toSerial(rc), 'Num. Recep.': pick(h), 'Fecha Zonaje': zon ? toSerial(zon) : null, 'El que reparte en zonas': zon ? pick(h) : null,
+          'Estado Etiqueta': loaded ? 'Cargada' : 'Recibida', 'Fecha Carga Etiq': loaded ? toSerial(cg) : null, 'Operador': loaded ? pick(new Date(cg).getUTCHours()) : null,
+          'Num Paquete Pos.': 1 + Math.floor(rnd()*40), 'Tipo Bord': tipo});
+      }
+    }
+  }
+  return { trips: buildTrips(T, buildMap(Object.keys(T[0]), TRIP_COLS)), rows: buildRows(M, buildMap(Object.keys(M[0]), MOV_COLS)),
+    tipoDesc: {AQ:'TRAÍDO A MUELLE', EN:'ENTRADA NORMAL', EX:'EXPEDICIÓN'} };
+}
+
+/* ---------- Filtros y parámetros ---------- */
+function fillSelect(id, values, allLabel){
+  const sel = $(id), cur = sel.value;
+  sel.innerHTML = '<option value="">' + allLabel + '</option>' + values.map(v => '<option>' + esc(v) + '</option>').join('');
+  sel.value = values.includes(cur) ? cur : '';
+}
+const uniq = a => [...new Set(a)].filter(Boolean).sort((x,y) => String(x).localeCompare(String(y),'es'));
+function setupFilters(){
+  fillSelect('fOp', uniq(state.events.map(e => e.op)), 'Todos');
+  fillSelect('fTemp', uniq(state.rows.map(r => r.temp)), 'Todas');
+  fillSelect('fEstado', uniq(state.rows.map(r => r.estado)), 'Todos');
+  fillSelect('fAg', uniq(state.trips.map(t => t.agencia)), 'Todas');
+  let lo = Infinity, hi = -Infinity;
+  for (const e of state.events){ if (e.day < lo) lo = e.day; if (e.day > hi) hi = e.day; }
+  for (const t of state.trips){ if (t.day < lo) lo = t.day; if (t.day > hi) hi = t.day; }
+  if (isFinite(lo)){ state.minDay = lo; state.maxDay = hi; $('fFrom').value = isoDay(lo); $('fTo').value = isoDay(hi); $('fFrom').min = $('fTo').min = isoDay(lo); $('fFrom').max = $('fTo').max = isoDay(hi); }
+}
+const dayOfInput = v => v ? Math.floor(Date.parse(v + 'T00:00:00Z')/DAY) : null;
+function readFilters(){
+  return { from: dayOfInput($('fFrom').value) ?? -Infinity, to: dayOfInput($('fTo').value) ?? Infinity, act: $('fAct').value || 'RZPC',
+    turno: $('fTurno').value, op: $('fOp').value, temp: $('fTemp').value, estado: $('fEstado').value, ag: $('fAg').value };
+}
+function readParams(){
+  const v = id => { const n = parseFloat($(id).value); return isFinite(n) && n > 0 ? n : null; };
+  return { sla: (v('pSla') || 12)*60, slaH: v('pSla') || 12, tol: parseFloat($('pTol').value) >= 0 ? parseFloat($('pTol').value) : 15, target: v('pTarget'), hours: v('pHours') || 7, jorn: v('pJorn') || 8,
+    shift: parseInt($('pShift').value, 10) >= 0 ? parseInt($('pShift').value, 10) % 24 : 0 };
+}
+function applyShifts(){
+  const st = readParams().shift;
+  if (st !== state.shiftApplied){ setShiftStart(st); for (const e of state.events) e.turno = turnoOf(e.hour); state.shiftApplied = st; }
+  const sel = $('fTurno'), cur = sel.value, names = TURNOS.map(t => t[0]);
+  sel.innerHTML = '<option value="">Todos</option>' + names.map(n => `<option>${n}</option>`).join('');
+  sel.value = names.includes(cur) ? cur : '';
+}
+
+/* ---------- Cálculo ---------- */
+function dwStats(rows, p, end){
+  const a = rows.filter(r => r.dwC!=null).map(r => r.dwC); const open = rows.filter(r => r.cg==null && r.rc!=null);
+  return { n: rows.length, med: median(a), p90: quantile(a,.9), inSla: a.length ? a.filter(x => x <= p.sla).length/a.length : null, pend: open.length, old: open.filter(r => end - r.rc > DAY).length };
+}
+function compute(){
+  const f = readFilters(), p = readParams(); const kinds = new Set(f.act.split(''));
+  const evAll = state.events.filter(e => e.day >= f.from && e.day <= f.to && (!f.turno || e.turno===f.turno) && (!f.op || e.op===f.op) && (!f.temp || e.temp===f.temp) && (!f.estado || e.estado===f.estado));
+  const work = evAll.filter(e => kinds.has(e.k));
+  const rows = state.rows.filter(r => r.day >= f.from && r.day <= f.to && (!f.temp || r.temp===f.temp) && (!f.estado || r.estado===f.estado));
+  const trips = state.trips.filter(t => t.day >= f.from && t.day <= f.to && (!f.ag || t.agencia===f.ag));
+  const nDays = new Set(work.map(e => e.day)).size || 1;
+  const kCount = {R:0, Z:0, P:0, C:0}; let totPts = 0; for (const e of work){ kCount[e.k]++; totPts += e.pts; }
+  const jHours = (op, day) => { const j = state.jornada.get(op + '|' + day); return j ? Math.min((j[1] - j[0])/3600e3, p.jorn) : 0; };
+
+  // Operarios
+  const opMap = new Map(); const get = op => { let o = opMap.get(op); if (!o){ o = {op, n:0, pts:0, R:0, Z:0, P:0, C:0, days:new Set(), turnos:{}}; opMap.set(op, o); } return o; };
+  for (const e of evAll) get(e.op)[e.k]++;
+  for (const e of work){ const o = get(e.op); o.n++; o.pts += e.pts; o.days.add(e.day); o.turnos[e.turno] = (o.turnos[e.turno]||0) + 1; }
+  const ops = [...opMap.values()].map(o => { const hours = [...o.days].reduce((s,d) => s + jHours(o.op, d), 0);
+    return {...o, jornadas:o.days.size, hours, rate: hours >= 0.25 ? o.pts/hours : null, movH: hours >= 0.25 ? o.n/hours : null, turno: (Object.entries(o.turnos).sort((a,b) => b[1]-a[1])[0] || ['—'])[0]}; });
+  const active = ops.filter(o => o.rate != null), solid = active.filter(o => o.hours >= 16);
+  const autoTarget = median((solid.length ? solid : active).map(o => o.rate));
+  const target = p.target || autoTarget || null;
+  for (const o of ops){ o.vs = target && o.rate!=null ? o.rate/target : null; o.status = o.hours < 4 ? 'mute' : o.vs >= 1 ? 'good' : o.vs >= 0.85 ? 'warn' : 'bad'; }
+  ops.sort((a,b) => (b.rate ?? -1) - (a.rate ?? -1) || b.R + b.Z + b.C - a.R - a.Z - a.C);
+  const totHours = active.reduce((s,o) => s + o.hours, 0);
+  const globalRate = totHours ? active.reduce((s,o) => s + o.pts, 0)/totHours : null;
+  const globalMov = totHours ? active.reduce((s,o) => s + o.n, 0)/totHours : null;
+
+  // Perfil horario
+  const hour = Array.from({length:24}, () => ({FR:0, SU:0, Otras:0, tot:0, slots:new Set()}));
+  for (const e of work){ const h = hour[e.hour]; h[tempKey(e.temp)] += e.pts; h.tot += e.pts; h.slots.add(e.day + '|' + e.op); }
+  const hours = hour.map((h,i) => { const avg = h.tot/nDays; return { h:i, FR:h.FR/nDays, SU:h.SU/nDays, Otras:h.Otras/nDays, avg, present: h.slots.size/nDays, need: target && avg > 0 ? avg/target : 0 }; });
+
+  // Turnos
+  const turnos = TURNOS.map(([name, hs]) => {
+    const es = work.filter(e => e.turno === name);
+    const have = new Set(es.map(e => e.day + '|' + e.op)).size/nDays;
+    const opHours = hs.reduce((s,h) => s + hours[h].present, 0);
+    const ssccDay = es.reduce((s,e) => s + e.pts, 0)/nDays; const need = target ? ssccDay/(target*p.hours) : null;
+    return { name, ssccDay, have, opHours, rate: opHours ? ssccDay/opHours : null, need, needInt: need!=null ? Math.max(ssccDay > 0 ? 1 : 0, Math.ceil(need - 0.05)) : null,
+      diff: need!=null ? Math.round(have - Math.max(ssccDay > 0 ? 1 : 0, Math.ceil(need - 0.05))) : null };
+  });
+
+  // Tiempo en muelle
+  const end = state.dataEnd;
+  const dw = rows.filter(r => r.dwC!=null).map(r => r.dwC);
+  const dwAll = dwStats(rows, p, end);
+  const dwByTemp = ['FR','SU','Otras'].map(k => ({k, ...dwStats(rows.filter(r => tempKey(r.temp)===k), p, end)})).filter(r => r.n);
+  const tipoGroups = new Map(); for (const r of rows){ if (!tipoGroups.has(r.tipo)) tipoGroups.set(r.tipo, []); tipoGroups.get(r.tipo).push(r); }
+  const dwByTipo = [...tipoGroups].map(([k, rs]) => ({k, ...dwStats(rs, p, end)})).sort((a,b) => b.n - a.n);
+  const byRH = Array.from({length:24}, () => []); for (const r of rows) if (r.dwC!=null && r.rc!=null) byRH[new Date(r.rc).getUTCHours()].push(r.dwC);
+  const dwHour = byRH.map(a => a.length >= 5 ? median(a) : null);
+  const zw = rows.filter(r => r.dwZ!=null).map(r => r.dwZ);
+
+  // Viajes
+  const lle = trips.filter(t => t.lleDelay!=null), sal = trips.filter(t => t.salDelay!=null);
+  const onTime = (a, k) => a.length ? a.filter(t => t[k] <= p.tol).length/a.length : null;
+  const agMap = new Map();
+  for (const t of trips){ let a = agMap.get(t.agencia); if (!a){ a = {ag:t.agencia, n:0, lle:[], sal:[]}; agMap.set(t.agencia, a); } a.n++; if (t.lleDelay!=null) a.lle.push(t.lleDelay); if (t.salDelay!=null) a.sal.push(t.salDelay); }
+  const ags = [...agMap.values()].map(a => ({ ag:a.ag, n:a.n, puntSal: a.sal.length ? a.sal.filter(x => x<=p.tol).length/a.sal.length : null, puntLle: a.lle.length ? a.lle.filter(x => x<=p.tol).length/a.lle.length : null,
+    avg: a.lle.length ? a.lle.reduce((s,x) => s+x, 0)/a.lle.length : null, max: a.lle.length ? Math.max(...a.lle) : null }))
+    .map(a => ({...a, status: a.puntLle==null ? 'mute' : a.puntLle >= 0.9 ? 'good' : a.puntLle >= 0.8 ? 'warn' : 'bad'}))
+    .sort((x,y) => (x.puntLle ?? 2) - (y.puntLle ?? 2) || y.n - x.n);
+
+  // Días
+  const wByDay = new Map(); for (const e of work) wByDay.set(e.day, (wByDay.get(e.day)||0) + e.pts);
+  const tByDay = new Map(); for (const t of trips){ if (!tByDay.has(t.day)) tByDay.set(t.day, []); tByDay.get(t.day).push(t); }
+  const allDays = [...new Set([...wByDay.keys(), ...tByDay.keys()])].sort((a,b) => a-b);
+  const daily = allDays.map(d => { const tr = tByDay.get(d) || []; return { d, sscc: wByDay.get(d) || 0, trips: tr.length,
+    pSal: onTime(tr.filter(t => t.salDelay!=null),'salDelay'), pLle: onTime(tr.filter(t => t.lleDelay!=null),'lleDelay') }; });
+
+  return { f, p, kinds, work, kCount, totPts, globalMov, rows, trips, nDays, ops, target, autoTarget, globalRate, hours, turnos, dw, dwAll, dwByTemp, dwByTipo, dwHour, zw,
+    lle, sal, puntLle: onTime(lle,'lleDelay'), puntSal: onTime(sal,'salDelay'), ags, daily, noReal: trips.length - lle.length };
+}
+
+/* ---------- Alertas ---------- */
+function buildAlerts(r){
+  const A = [], p = r.p;
+  if (r.target){
+    const runs = (test) => { const out = []; let cur = null;
+      r.hours.forEach(h => { const v = test(h); if (v != null){ if (!cur) cur = {a:h.h, b:h.h, max:v}; else { cur.b = h.h; cur.max = Math.max(cur.max, v); } } else if (cur){ out.push(cur); cur = null; } });
+      if (cur) out.push(cur);
+      if (out.length > 1 && out[0].a === 0 && out[out.length-1].b === 23){ const last = out.pop(); out[0] = {a:last.a, b:out[0].b, max:Math.max(last.max, out[0].max)}; }
+      return out; };
+    const span = x => `entre las ${pad(x.a)}:00 y las ${pad((x.b+1)%24)}:00`;
+    for (const x of runs(h => { const g = h.need - h.present; return g >= 0.75 ? g : null; })){ const n = Math.ceil(x.max - 0.25);
+      A.push({s: x.max >= 1.5 ? 'bad' : 'warn', t: `${n===1 ? 'Falta ~1 operario' : 'Faltan ~' + n + ' operarios'} ${span(x)} para el objetivo de ${fmt(r.target)} puntos/h.`}); }
+    for (const x of runs(h => { const e = h.present - h.need; return h.present > 0 && e >= 1.5 ? e : null; })){ if (((x.b - x.a + 24) % 24) < 1) continue; const n = Math.floor(x.max);
+      A.push({s:'info', t:`Con ${fmt(r.target)} puntos/h sobrarían ~${n} ${n===1?'operario':'operarios'} ${span(x)}.`}); }
+    if (r.globalRate && r.globalRate < r.target) A.push({s: r.globalRate < r.target*0.85 ? 'bad' : 'warn', t:`El equipo hace ${fmt1(r.globalRate)} puntos por hora de jornada, el ${pct(r.globalRate/r.target)} del objetivo de ${fmt(r.target)}.`});
+    const low = r.ops.filter(o => o.status === 'bad'); if (low.length) A.push({s:'warn', t:`${low.length} ${low.length===1 ? 'operario queda' : 'operarios quedan'} por debajo del 85% del objetivo: ${low.slice(0,4).map(o => o.op).join(', ')}${low.length > 4 ? '…' : ''}.`});
+  }
+  const old = r.dwAll.old;
+  if (old){ const top = r.dwByTipo.filter(t => t.old).sort((a,b) => b.old - a.old)[0];
+    A.push({s: old > 200 ? 'bad' : 'warn', t:`${fmt(old)} SSCC recibidos hace más de 24 h siguen sin cargar` + (top ? `; ${fmt(top.old)} son de tipo ${top.k}${state.tipoDesc[top.k] ? ' (' + state.tipoDesc[top.k].toLowerCase() + ')' : ''}.` : '.')}); }
+  for (const t of r.dwByTemp){ if (t.p90!=null && t.p90 > p.sla*2) A.push({s:'warn', t:`${t.k}: el 10% más lento pasa más de ${durLabel(t.p90)} en muelle (objetivo ${fmt1(p.slaH)} h).`}); }
+  const slowH = r.dwHour.map((m,h) => ({m,h})).filter(x => x.m!=null && x.m > p.sla).map(x => pad(x.h)+'h');
+  if (slowH.length) A.push({s:'warn', t:`Lo recibido a estas horas espera más de ${fmt1(p.slaH)} h de mediana: ${slowH.slice(0,10).join(', ')}${slowH.length>10?'…':''}.`});
+  for (const a of r.ags.filter(a => a.status==='bad' && a.n >= 3).slice(0,3)) A.push({s:'bad', t:`Agencia ${a.ag}: ${pct(a.puntLle)} de llegadas puntuales, retraso medio ${minLabel(a.avg)} (${a.n} viajes).`});
+  if (r.noReal > 0) A.push({s:'info', t:`${fmt(r.noReal)} viajes sin hora real de llegada; no cuentan en la puntualidad.`});
+  if (!A.length) A.push({s:'good', t:'Sin incidencias con los parámetros actuales.'});
+  const order = {bad:0, warn:1, info:2, good:3}; return A.sort((a,b) => order[a.s]-order[b.s]);
+}
+
+/* ---------- Pintado ---------- */
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setKpi(id, value, sub, s){ const el = $(id); el.querySelector('strong').textContent = value; el.querySelector('em').textContent = sub || ''; if (s) el.dataset.s = s; else delete el.dataset.s; }
+const sLevel = (v, good, warn) => v==null ? null : v >= good ? 'good' : v >= warn ? 'warn' : 'bad';
+const LABEL = {good:'Bien', warn:'Vigilar', bad:'Mejorar', mute:'Poca actividad', info:'Info'};
+const actLabel = r => [...r.kinds].map(k => KIND[k].toLowerCase()).join(' + ');
+
+function render(){
+  applyShifts();
+  const r = compute(); state.last = r; const p = r.p;
+  $('rangeLabel').textContent = isFinite(r.f.from) ? `Del ${dayLabel(r.f.from)} al ${dayLabel(r.f.to)} · ${r.nDays} días con actividad` : '';
+  setKpi('kViajes', fmt(r.trips.length), r.trips.length ? `Salida puntual ${pct(r.puntSal)}` : 'Sin viajes en el rango');
+  setKpi('kPuntLle', pct(r.puntLle), `Tolerancia ${p.tol} min · ${fmt(r.lle.length)} con hora real`, sLevel(r.puntLle, .9, .8));
+  setKpi('kSSCC', fmt(r.totPts), `${fmt(r.work.length)} movimientos: ` + [...r.kinds].map(k => `${fmt(r.kCount[k])} ${KIND[k].toLowerCase()}`).join(' · '));
+  setKpi('kRate', fmt1(r.globalRate), (r.target ? `Objetivo ${fmt(r.target)}${r.p.target ? '' : ' (auto)'} · ` : '') + `${fmt1(r.globalMov)} mov/h`, r.target && r.globalRate ? sLevel(r.globalRate/r.target, 1, .85) : null);
+  setKpi('kDwell', durLabel(r.dwAll.med), `Mediana recepción→carga · ${pct(r.dwAll.inSla)} en menos de ${fmt1(p.slaH)} h`, sLevel(r.dwAll.inSla, .9, .75));
+  const need = r.turnos.reduce((s,t) => s + (t.needInt || 0), 0), have = r.turnos.reduce((s,t) => s + t.have, 0);
+  setKpi('kStaff', r.target ? `${fmt1(have)} / ${need}` : '—', 'Operarios/día reales vs necesarios', r.target ? (have >= need ? 'good' : have >= need*0.9 ? 'warn' : 'bad') : null);
+  $('trendSub').textContent = `Puntos por día (${actLabel(r)}) · viajes`;
+
+  const alerts = buildAlerts(r); state.alerts = alerts;
+  $('alertCount').textContent = `${alerts.filter(a => a.s==='bad').length} críticas · ${alerts.filter(a => a.s==='warn').length} avisos`;
+  $('alerts').innerHTML = alerts.map(a => `<li><span class="chip ${a.s}">${a.s==='bad'?'Crítica':a.s==='warn'?'Aviso':a.s==='good'?'OK':'Info'}</span><span>${esc(a.t)}</span></li>`).join('');
+
+  $('hourSub').textContent = `Puntos medios por día y hora (${actLabel(r)})` + (r.target ? ` · objetivo ${fmt(r.target)} puntos/h por operario` : '');
+  $('tTurnos').tBodies[0].innerHTML = r.turnos.map(t => { const d = t.diff; const chip = d==null ? '<span class="chip mute">—</span>' : d < 0 ? `<span class="chip bad">${d===-1?'Falta 1':'Faltan '+(-d)}</span>` : d >= 2 ? `<span class="chip info">Sobran ${d}</span>` : '<span class="chip good">Ajustado</span>';
+    return `<tr><td><strong>${t.name}</strong></td><td class="n">${fmt(t.ssccDay)}</td><td class="n">${fmt1(t.have)}</td><td class="n">${fmt1(t.opHours)}</td><td class="n">${fmt1(t.rate)}</td><td class="n">${t.needInt ?? '—'}</td><td>${chip}</td></tr>`; }).join('');
+  renderHeat(r);
+
+  $('dwellSub').textContent = `${fmt(r.dw.length)} SSCC cargados · objetivo ${fmt1(p.slaH)} h · P90 ${durLabel(r.dwAll.p90)}` + (r.zw.length ? ` · recepción→zonaje mediana ${durLabel(median(r.zw))} (${fmt(r.zw.length)} SSCC)` : '');
+  const TC = {FR:'--fr', SU:'--su', Otras:'--other'};
+  $('tTemp').tBodies[0].innerHTML = r.dwByTemp.map(t => `<tr><td><span class="tempdot" style="background:var(${TC[t.k]})"></span>${t.k==='FR'?'FR · refrigerado':t.k==='SU'?'SU · congelado':'Otras'}</td><td class="n">${fmt(t.n)}</td><td class="n">${durLabel(t.med)}</td><td class="n">${durLabel(t.p90)}</td><td class="n">${pct(t.inSla)}</td><td class="n">${fmt(t.pend)}</td><td class="n">${fmt(t.old)}</td></tr>`).join('') || '<tr><td colspan="7">Sin datos</td></tr>';
+  $('tTipo').tBodies[0].innerHTML = r.dwByTipo.map(t => `<tr><td><strong>${esc(t.k)}</strong>${state.tipoDesc[t.k] ? ' · ' + esc(state.tipoDesc[t.k].toLowerCase()) : ''}</td><td class="n">${fmt(t.n)}</td><td class="n">${durLabel(t.med)}</td><td class="n">${durLabel(t.p90)}</td><td class="n">${pct(t.inSla)}</td><td class="n">${fmt(t.pend)}</td></tr>`).join('') || '<tr><td colspan="6">Sin datos</td></tr>';
+
+  $('tolSub').textContent = `% de viajes con menos de ${p.tol} min de retraso`;
+  $('tAg').tBodies[0].innerHTML = r.ags.map(a => `<tr><td>${esc(a.ag)}</td><td class="n">${fmt(a.n)}</td><td class="n">${pct(a.puntSal)}</td><td class="n">${pct(a.puntLle)}</td><td class="n">${minLabel(a.avg)}</td><td class="n">${minLabel(a.max)}</td><td><span class="chip ${a.status}">${LABEL[a.status]}</span></td></tr>`).join('') || '<tr><td colspan="7">Sin viajes en el rango</td></tr>';
+
+  $('opSub').textContent = (r.target ? `Objetivo ${fmt(r.target)} puntos/h · verde ≥ objetivo · ámbar ≥ 85% · rojo < 85%` : '') + ` · ${actLabel(r)}`;
+  $('tOps').tBodies[0].innerHTML = r.ops.map(o => `<tr><td>${esc(o.op)}</td><td>${o.turno}</td><td class="n">${fmt(o.R)}</td><td class="n">${fmt(o.Z)}</td><td class="n">${fmt(o.P)}</td><td class="n">${fmt(o.C)}</td><td class="n">${fmt(o.jornadas)}</td><td class="n">${fmt1(o.hours)}</td><td class="n">${fmt(o.pts)}</td><td class="n">${fmt1(o.rate)}</td><td class="n">${fmt1(o.movH)}</td><td class="n">${o.vs!=null ? pct(o.vs) : '—'}</td><td><span class="chip ${o.status}">${LABEL[o.status]}</span></td></tr>`).join('') || '<tr><td colspan="13">Sin actividad</td></tr>';
+
+  renderCharts(r);
+}
+
+function renderHeat(r){
+  const top = r.ops.filter(o => o.pts).sort((a,b) => b.pts - a.pts).slice(0,15).map(o => o.op);
+  if (!top.length){ $('tHeat').innerHTML = '<tbody><tr><td class="lbl">Sin datos</td></tr></tbody>'; return; }
+  const grid = new Map(top.map(o => [o, new Array(24).fill(0)]));
+  for (const e of r.work){ const g = grid.get(e.op); if (g) g[e.hour] += e.pts; }
+  let max = 0; grid.forEach(g => g.forEach(v => { if (v/r.nDays > max) max = v/r.nDays; }));
+  const head = '<thead><tr><th>Operario</th>' + Array.from({length:24}, (_,h) => `<th>${pad(h)}</th>`).join('') + '</tr></thead>';
+  const body = top.map(o => '<tr><td class="lbl">' + esc(o) + '</td>' + grid.get(o).map((v,h) => { const a = v/r.nDays; const k = max ? Math.round(a/max*85) : 0;
+    return `<td style="background:color-mix(in srgb, var(--accent) ${k}%, var(--surface));color:${k > 50 ? 'var(--accent-ink)' : 'var(--ink)'}" title="${esc(o)} · ${pad(h)}:00 · ${fmt1(a)} puntos/día">${a >= 0.5 ? fmt(a) : ''}</td>`; }).join('') + '</tr>').join('');
+  $('tHeat').innerHTML = head + '<tbody>' + body + '</tbody>';
+}
+
+function mk(id, config){
+  if (state.charts[id]) state.charts[id].destroy();
+  const canvas = $(id); if (!canvas) return;
+  if (!window.Chart){ canvas.parentElement.innerHTML = '<div class="nochart">No se pudo cargar la librería de gráficos. Revisa la conexión a Internet.</div>'; return; }
+  state.charts[id] = new Chart(canvas, config);
+}
+function renderCharts(r){
+  if (!r) return;
+  if (!window.Chart){ ['cTrend','cHour','cDwell','cDwellHour','cPunct','cAgency','cOps'].forEach(id => mk(id)); return; }
+  const C = { ink:tok('--ink'), muted:tok('--muted'), line:tok('--line'), accent:tok('--accent'), fr:tok('--fr'), su:tok('--su'), other:tok('--other'), good:tok('--good'), warn:tok('--warn'), bad:tok('--bad') };
+  Chart.defaults.color = C.muted; Chart.defaults.borderColor = C.line; Chart.defaults.font.family = 'Barlow, system-ui, sans-serif'; Chart.defaults.font.size = 12;
+  Chart.defaults.plugins.legend.labels.boxWidth = 12; Chart.defaults.maintainAspectRatio = false; Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:300};
+  const grid = { color: C.line }, noGrid = { display:false };
+  const hl = r.hours.map(h => pad(h.h));
+
+  mk('cTrend', { data: { labels: r.daily.map(d => dayLabel(d.d)), datasets: [
+    { type:'bar', label:'Puntos', data:r.daily.map(d => d.sscc), backgroundColor:C.accent, borderRadius:3, yAxisID:'y' },
+    { type:'line', label:'Viajes', data:r.daily.map(d => d.trips), borderColor:C.ink, backgroundColor:C.ink, pointRadius:2, tension:.25, yAxisID:'y1' } ] },
+    options: { interaction:{mode:'index', intersect:false}, scales:{ x:{grid:noGrid}, y:{grid, beginAtZero:true, title:{display:true, text:'Puntos'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Viajes'}} } } });
+
+  mk('cHour', { data: { labels: hl, datasets: [
+    { type:'bar', label:'FR', data:r.hours.map(h => h.FR), backgroundColor:C.fr, stack:'s', yAxisID:'y' },
+    { type:'bar', label:'SU', data:r.hours.map(h => h.SU), backgroundColor:C.su, stack:'s', yAxisID:'y' },
+    { type:'bar', label:'Otras', data:r.hours.map(h => h.Otras), backgroundColor:C.other, stack:'s', yAxisID:'y' },
+    { type:'line', label:'Operarios presentes', data:r.hours.map(h => h.present), borderColor:C.ink, backgroundColor:C.ink, pointRadius:2, stepped:'middle', yAxisID:'y1' },
+    { type:'line', label:'Operarios necesarios', data:r.hours.map(h => h.need), borderColor:C.bad, backgroundColor:C.bad, borderDash:[5,4], pointRadius:2, stepped:'middle', yAxisID:'y1' } ] },
+    options: { interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ title: it => it[0].label + ':00 – ' + pad((+it[0].label+1)%24) + ':00', label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)}` } } },
+      scales:{ x:{stacked:true, grid:noGrid, title:{display:true, text:'Hora'}}, y:{stacked:true, grid, beginAtZero:true, title:{display:true, text:'Puntos/día'}}, y1:{position:'right', grid:noGrid, beginAtZero:true, title:{display:true, text:'Operarios'}} } } });
+
+  const B = [[0,2],[2,4],[4,8],[8,12],[12,24],[24,48],[48,Infinity]].map(([a,b]) => [a*60, b*60]);
+  const cnt = B.map(([a,b]) => r.dw.filter(x => x >= a && x < b).length);
+  mk('cDwell', { type:'bar', data:{ labels: B.map(([a,b]) => b===Infinity ? `> ${a/60} h` : `${a/60}–${b/60} h`), datasets:[{ label:'SSCC', data:cnt,
+      backgroundColor: B.map(([a,b]) => b <= r.p.sla ? C.good : a >= r.p.sla*2 ? C.bad : C.warn), borderRadius:3 }] },
+    options:{ plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt(c.parsed.y)} SSCC · ${pct(r.dw.length ? c.parsed.y/r.dw.length : 0)}` } } }, scales:{ x:{grid:noGrid, title:{display:true, text:'Horas en muelle'}}, y:{grid, beginAtZero:true} } } });
+
+  mk('cDwellHour', { type:'line', data:{ labels: hl, datasets:[
+    { label:'Mediana en muelle (h)', data:r.dwHour.map(m => m==null ? null : m/60), borderColor:C.accent, backgroundColor:C.accent, pointRadius:2, tension:.3, spanGaps:true },
+    { label:'Objetivo', data:hl.map(() => r.p.slaH), borderColor:C.bad, borderDash:[5,4], pointRadius:0 } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ title: it => 'Recibido a las ' + it[0].label + ':00', label: c => `${c.dataset.label}: ${fmt1(c.parsed.y)} h` } } }, scales:{ x:{grid:noGrid, title:{display:true, text:'Hora de recepción'}}, y:{grid, beginAtZero:true, title:{display:true, text:'Horas'}} } } });
+
+  mk('cPunct', { type:'line', data:{ labels: r.daily.map(d => dayLabel(d.d)), datasets:[
+    { label:'Salida puntual', data:r.daily.map(d => d.pSal==null ? null : d.pSal*100), borderColor:C.su, backgroundColor:C.su, pointRadius:2, tension:.25, spanGaps:true },
+    { label:'Llegada puntual', data:r.daily.map(d => d.pLle==null ? null : d.pLle*100), borderColor:C.accent, backgroundColor:C.accent, pointRadius:2, tension:.25, spanGaps:true },
+    { label:'Meta 90%', data:r.daily.map(() => 90), borderColor:C.good, borderDash:[5,4], pointRadius:0 } ] },
+    options:{ interaction:{mode:'index', intersect:false}, plugins:{ tooltip:{ callbacks:{ label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}%` } } }, scales:{ x:{grid:noGrid}, y:{grid, min:0, max:100, ticks:{ callback: v => v + '%' } } } } });
+
+  const agS = r.ags.filter(a => a.avg!=null).slice().sort((a,b) => b.avg - a.avg).slice(0,15);
+  mk('cAgency', { type:'bar', data:{ labels: agS.map(a => a.ag.replace(/^STEF\s+/,'')), datasets:[{ label:'Retraso medio (min)', data: agS.map(a => Math.round(a.avg)),
+      backgroundColor: agS.map(a => a.avg > r.p.tol ? C.bad : a.avg > 0 ? C.warn : C.good), borderRadius:3 }] },
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ title: it => agS[it[0].dataIndex].ag, label: c => `${minLabel(c.parsed.x)} de media · ${agS[c.dataIndex].n} viajes` } } }, scales:{ x:{grid, title:{display:true, text:'Minutos'}}, y:{grid:noGrid} } } });
+
+  const opS = r.ops.filter(o => o.rate != null && o.hours >= 1).slice(0,30);
+  mk('cOps', { type:'bar', data:{ labels: opS.map(o => o.op), datasets:[{ label:'Puntos/h', data: opS.map(o => +o.rate.toFixed(1)),
+      backgroundColor: opS.map(o => o.status==='good' ? C.good : o.status==='warn' ? C.warn : o.status==='bad' ? C.bad : C.other), borderRadius:3 }] },
+    options:{ indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => `${fmt1(c.parsed.x)} puntos/h · ${fmt(opS[c.dataIndex].pts)} puntos en ${fmt1(opS[c.dataIndex].hours)} h de jornada` } } },
+      scales:{ x:{grid, beginAtZero:true, suggestedMax: r.target ? r.target*1.1 : undefined, title:{display:true, text:'Puntos por hora de jornada'}}, y:{grid:noGrid, ticks:{autoSkip:false}} } } });
+}
+
+/* ---------- Interfaz ---------- */
+let toastT; function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 4500); }
+function tableTSV(id){ return [...$(id).rows].map(tr => [...tr.cells].map(c => c.textContent.trim()).join('\t')).join('\n'); }
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
+  const txt = tableTSV(b.dataset.copy);
+  const done = () => toast('Tabla copiada. Pégala en Excel con Ctrl+V.');
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch(e){ toast('No se pudo copiar. Selecciona la tabla y cópiala a mano.'); } ta.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
+}));
+$('exportXlsx').addEventListener('click', () => {
+  const r = state.last; if (!r || !window.XLSX){ toast('No se pudo cargar la librería de Excel.'); return; }
+  const wb = XLSX.utils.book_new();
+  const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:'Sin datos'}]), name);
+  add('Operarios', r.ops.map(o => ({Operario:o.op, 'Turno habitual':o.turno, Recepciones:o.R, Zonajes:o.Z, Precargas:o.P, Cargas:o.C, Jornadas:o.jornadas, 'Horas jornada':+o.hours.toFixed(2), Puntos:o.pts, 'Puntos/h':o.rate!=null ? +o.rate.toFixed(2) : '', 'Mov/h':o.movH!=null ? +o.movH.toFixed(2) : '', 'vs objetivo %':o.vs!=null ? Math.round(o.vs*100) : '', Estado:LABEL[o.status]})));
+  add('Turnos', r.turnos.map(t => ({Turno:t.name, 'Puntos/día':Math.round(t.ssccDay), 'Operarios/día':+t.have.toFixed(1), 'Horas-operario/día':+t.opHours.toFixed(1), 'Puntos/h':t.rate!=null ? +t.rate.toFixed(2) : '', 'Plantilla necesaria':t.needInt ?? ''})));
+  add('Carga por hora', r.hours.map(h => ({Hora:pad(h.h)+':00', 'Puntos/día FR':+h.FR.toFixed(1), 'Puntos/día SU':+h.SU.toFixed(1), 'Puntos/día otras':+h.Otras.toFixed(1), 'Operarios presentes':+h.present.toFixed(1), 'Operarios necesarios':+h.need.toFixed(1), 'Mediana en muelle h (por hora de recepción)':r.dwHour[h.h]!=null ? +(r.dwHour[h.h]/60).toFixed(1) : ''})));
+  add('Tiempo en muelle', r.dwByTipo.map(t => ({'Tipo Bord':t.k, Descripción:state.tipoDesc[t.k]||'', SSCC:t.n, 'Mediana h':t.med!=null ? +(t.med/60).toFixed(1) : '', 'P90 h':t.p90!=null ? +(t.p90/60).toFixed(1) : '', 'En objetivo %':t.inSla!=null ? Math.round(t.inSla*100) : '', 'Sin cargar':t.pend})));
+  add('Agencias', r.ags.map(a => ({Agencia:a.ag, Viajes:a.n, 'Salida puntual %':a.puntSal!=null ? Math.round(a.puntSal*100) : '', 'Llegada puntual %':a.puntLle!=null ? Math.round(a.puntLle*100) : '', 'Retraso medio min':a.avg!=null ? Math.round(a.avg) : '', 'Peor retraso min':a.max!=null ? Math.round(a.max) : ''})));
+  add('Alertas', (state.alerts||[]).map(a => ({Nivel:a.s, Alerta:a.t})));
+  try { XLSX.writeFile(wb, 'Informe_Muelle_Valencia.xlsx'); toast('Informe generado. Si no se descarga, abre el dashboard desde el archivo index.html en tu PC.'); }
+  catch(e){ toast('Este visor no permite descargas. Usa "Copiar tabla" o abre index.html en tu PC.'); }
+});
+
+function applyTheme(t){ if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+applyTheme(store.get('to-theme'));
+$('themeBtn').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('to-theme', next); renderCharts(state.last);
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderCharts(state.last));
+
+const PARAMS = ['pTarget','pShift','pJorn','pHours','pSla','pTol'];
+try { const saved = JSON.parse(store.get('to-params-v4') || 'null'); if (saved) PARAMS.forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); } catch(e){}
+PARAMS.forEach(id => $(id).addEventListener('change', () => { store.set('to-params-v4', JSON.stringify(Object.fromEntries(PARAMS.map(k => [k, $(k).value])))); render(); }));
+['fFrom','fTo','fAct','fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).addEventListener('change', render));
+$('resetFilters').addEventListener('click', () => { ['fTurno','fOp','fTemp','fEstado','fAg'].forEach(id => $(id).value = ''); $('fAct').value = 'RZPC'; if (state.minDay!=null){ $('fFrom').value = isoDay(state.minDay); $('fTo').value = isoDay(state.maxDay); } render(); });
+
+function useData(d, label){
+  setShiftStart(readParams().shift);
+  state.trips = d.trips; state.tipoDesc = d.tipoDesc || {}; finishRows(d.rows);
+  $('sourceLabel').textContent = label;
+  setupFilters(); render();
+}
+function showBanner(kind, tag, text){ const b = $('banner'); b.hidden = false; b.classList.toggle('error', kind === 'error'); b.querySelector('b').textContent = tag; $('bannerText').textContent = text; }
+
+$('excelFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  $('sourceLabel').textContent = 'Leyendo ' + file.name + '…';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const res = loadWorkbook(new Uint8Array(ev.target.result), file.name);
+      if (!res.trips.length && !res.rows.length) throw new Error('Las hojas están vacías o no tienen fechas reconocibles.');
+      state.source = 'file'; state.fileName = file.name;
+      useData(res, `${file.name} · ${fmt(res.trips.length)} viajes · ${fmt(res.rows.length)} líneas SSCC`);
+      if (res.warn.length) showBanner('error', 'Revisa', 'Archivo cargado con avisos: ' + res.warn.join('; ') + '.'); else $('banner').hidden = true;
+      toast('Excel cargado: ' + file.name);
+    } catch(err){
+      $('sourceLabel').textContent = state.fileName || 'Datos de ejemplo';
+      showBanner('error', 'Error', err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Arranque: datos incrustados si los hay; si no, datos de ejemplo
+const emb = document.getElementById('embedded-data');
+let started = false;
+if (emb && emb.textContent.trim()){
+  try {
+    const o = JSON.parse(emb.textContent); const d = fromCompact(o);
+    state.source = 'embedded'; state.fileName = o.file || 'Excel';
+    useData(d, `${state.fileName} · ${fmt(d.trips.length)} viajes · ${fmt(d.rows.length)} líneas SSCC`);
+    showBanner('info', 'Datos', `Datos de ${state.fileName} del ${dayLabel(state.minDay)} al ${dayLabel(state.maxDay)}. Para ver otro periodo, pulsa Cargar Excel.`);
+    started = true;
+  } catch(e){ /* datos incrustados dañados: se usan los de ejemplo */ }
+}
+if (!started){ const s = sample(); useData(s, `Datos de ejemplo · ${fmt(s.trips.length)} viajes · ${fmt(s.rows.length)} líneas SSCC · 14 días`); }
+})();
+</script>
+</body>
+</html>
